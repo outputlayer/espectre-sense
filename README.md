@@ -1,166 +1,156 @@
 # ESPectre
 
-**WiFi CSI room presence detection, movement tracking, vital signs & sleep quality analysis using ESP32-S3 sensors.**
+**WiFi CSI room sensing — presence detection, activity classification, vital signs & sleep monitoring with ESP32-S3.**
 
-ESPectre turns standard WiFi signals into a room-sensing system — detecting people, classifying activity, estimating heart/breathing rate, and analyzing sleep quality. No cameras, no wearables.
+ESPectre uses WiFi Channel State Information (CSI) to detect people, classify their activity (empty / lying / sitting / walking), estimate heart & breathing rate, and track sleep quality. No cameras, no wearables — just WiFi signals.
 
-## Quick Start (4 Steps)
+## Architecture
 
-### Step 1: Flash ESP32-S3 Firmware
+```
+ESP32-S3 Nodes (x3)          Rust Server (Docker)              Browser
+┌──────────────┐        ┌───────────────────────────┐    ┌──────────────┐
+│ WiFi CSI data │──UDP──→│  CSINetLight CNN (pure    │    │   Heatmap    │
+│ 56 subcarrier │  5005  │  Rust, no ML frameworks)  │─WS→│   Sleep      │
+│ amplitudes    │        │  ├─ 4-class presence      │4001│   Training   │
+│ ~7 fps/node   │        │  ├─ Vital signs (HR, BR)  │    │              │
+│               │        │  └─ Sleep quality scoring  │    │              │
+└──────────────┘        └───────────────────────────┘    └──────────────┘
+```
 
-You need 3x ESP32-S3 boards arranged in a triangle in the room.
+### Deep Learning Pipeline
+
+The classification uses **CSINetLight** — a CNN trained on WiFi CSI amplitude data:
+
+| Stage | Details |
+|-------|---------|
+| **Input** | 3 nodes × 56 subcarriers = 168 features × 100 frames (~4.5s window) |
+| **Preprocessing** | Baseline subtraction (empty room) → normalization |
+| **Model** | Conv1d(168→128) → Conv1d(128→256) → Conv1d(256→128) → AdaptiveAvgPool → Dense(128→64→4) |
+| **Output** | 4 classes: `empty`, `lying`, `sitting`, `walking` |
+| **Accuracy** | 100% on validation set (4433 labeled windows) |
+| **Inference** | Pure Rust, zero ML dependencies, ~1ms per frame |
+
+## Quick Start
+
+### 1. Flash ESP32-S3 Firmware
+
+3x ESP32-S3 boards in a triangle layout:
 
 ```bash
-# Install ESP-IDF v5.2
-# https://docs.espressif.com/projects/esp-idf/en/v5.2/esp32s3/get-started/
-
 cd firmware
 idf.py set-target esp32s3
 idf.py build
 idf.py -p /dev/ttyUSB0 flash
 
-# Write WiFi credentials to each board (stored in NVS, never in code)
-python provision.py --port /dev/ttyUSB0 --ssid "YourWiFi" --password "YourPass" --target-ip YOUR_SERVER_IP
+# Write WiFi creds to NVS (never stored in code)
+python provision.py --port /dev/ttyUSB0 \
+  --ssid "YourWiFi" --password "YourPass" \
+  --target-ip YOUR_SERVER_IP
 ```
 
-Repeat for all 3 boards. Each board streams CSI data via UDP to port 5005 on your server.
-
-### Step 2: Deploy Server
+### 2. Deploy Server
 
 ```bash
-git clone https://github.com/outputlayer/espectre.git
-cd espectre
-
 docker build -t espectre -f docker/Dockerfile .
-docker run -d \
-  --name espectre \
-  -p 3030:4000 \
-  -p 3031:4001 \
-  -p 5005:5005/udp \
+docker run -d --name espectre \
+  --network host \
   -v espectre-data:/app/data \
   -e CSI_SOURCE=esp32 \
   espectre
 ```
 
-Open dashboards:
-- **Heatmap:** `http://YOUR_SERVER:3030/ui/heatmap.html`
-- **Sleep Monitor:** `http://YOUR_SERVER:3030/ui/sleep.html`
+Or with explicit ports:
 
-At this point you have real-time presence detection using the built-in ESPectre algorithm (no ML training needed).
+```bash
+docker run -d --name espectre \
+  -p 3030:4000 -p 3031:4001 -p 5005:5005/udp \
+  -v espectre-data:/app/data \
+  -e CSI_SOURCE=esp32 \
+  espectre
+```
 
-### Step 3: Collect Training Data
+Open: `http://YOUR_SERVER:3030/ui/heatmap.html`
 
-Open the training UI: `http://YOUR_SERVER:3030/ui/train.html`
+### 3. (Optional) Train Your Own Model
 
-Record labeled CSI data by performing activities while the system captures sensor readings:
+Record labeled data via `http://YOUR_SERVER:3030/ui/train.html`:
 
-| Button | What to do | Duration |
-|--------|-----------|----------|
-| **Empty Room** | Leave room, close door | 3-5 min |
-| **Sitting Still** | Sit at desk normally | 3-5 min |
-| **Walking** | Walk around the room | 2-3 min |
-| **Active** | Exercise, wave arms | 2-3 min |
-| **Lying Down** | Lie in bed, stay still | 3-5 min |
-| **Empty + Door Open** | Leave room, door open | 3-5 min |
+| Activity | What to do | Duration |
+|----------|-----------|----------|
+| **Empty** | Leave room, close door | 3-5 min |
+| **Lying** | Lie in bed, stay still | 3-5 min |
+| **Sitting** | Sit at desk normally | 3-5 min |
+| **Walking** | Walk around the room | 3-5 min |
 
-Repeat at different times of day and with different conditions (lights on/off, door open/closed) for best results.
-
-### Step 4: Train & Deploy Model
+Then train:
 
 ```bash
 cd training
 pip install -r requirements.txt
-python train_sklearn.py
+
+# 1. Preprocess raw CSI recordings
+python prepare_data.py
+
+# 2. Train CSINetLight CNN
+python train_dl.py
 ```
 
-This trains 3 models (MLP, Random Forest, Gradient Boosting) and exports the best MLP weights for the Rust server. Copy the updated `trained_mlp.rs` to the server and rebuild Docker.
-
-## How It Works
-
-```
-ESP32-S3 Nodes (x3)          Rust Server (Docker)          Browser
-┌──────────────┐        ┌─────────────────────┐     ┌──────────────┐
-│ WiFi CSI data │──UDP──→│ ESPectre Algorithm  │     │   Heatmap    │
-│ 56 subcarrier │  5005  │ ├─ Turbulence       │──WS→│   Sleep      │
-│ amplitudes    │        │ ├─ Motion energy    │ 4001│   Training   │
-│               │        │ ├─ Vital signs (HR) │     │              │
-│               │        │ └─ MLP Classifier   │     │              │
-└──────────────┘        └─────────────────────┘     └──────────────┘
-```
-
-The ESPectre algorithm processes CSI amplitude data per node:
-1. **Turbulence** — frame-to-frame amplitude changes (body disrupts WiFi multipath)
-2. **Peak detection** — 90th percentile turbulence (robust to WiFi spikes)
-3. **Motion energy** — current motion vs calibrated baseline
-4. **MLP Classifier** — trained neural network for 4-class classification
-
-Combined score: `turb×0.35 + peak×0.25 + motion×0.20 + variability×0.20` → 0-10 scale
+Trained weights are exported to `server/models/csi_light_weights.json`. Rebuild Docker to deploy.
 
 ## Project Structure
 
 ```
 espectre/
-├── firmware/               # ESP32-S3 firmware (ESP-IDF v5.2, C)
-│   ├── main/main.c         # CSI collection + UDP streaming
-│   ├── main/csi_collector.c # WiFi CSI frame capture
-│   ├── main/stream_sender.c # UDP frame transmission
-│   ├── main/nvs_config.c   # WiFi credentials from NVS
-│   ├── main/ota_update.c   # Over-the-air firmware updates
-│   └── provision.py        # Flash WiFi credentials via NVS
-├── server/src/             # Rust sensing server (Axum + Tokio)
-│   ├── main.rs             # UDP receiver, WS, REST API, classification
-│   ├── espectre.rs         # ESPectre motion detection algorithm
-│   ├── vital_signs.rs      # Heart rate & breathing rate from CSI
-│   ├── trained_mlp.rs      # Trained MLP classifier weights
-│   └── adaptive_classifier.rs # Runtime model adaptation
-├── training/               # ML training pipeline (Python)
-│   ├── train_sklearn.py    # Train MLP/RF/GB on recorded CSI data
-│   └── requirements.txt    # Python dependencies
-├── ui/                     # Web dashboards (vanilla HTML/JS/Canvas)
-│   ├── heatmap.html        # Real-time spatial heatmap + spectrograms
-│   ├── sleep.html          # Sleep quality dashboard with chart zoom
-│   └── train.html          # Training data collection UI
-└── docker/Dockerfile       # Multi-stage build (Rust → Debian slim)
+├── firmware/                 # ESP32-S3 firmware (ESP-IDF, C)
+│   ├── main/main.c           #   CSI collection + UDP streaming
+│   └── provision.py          #   Flash WiFi credentials
+├── server/                   # Rust server (Axum + Tokio)
+│   ├── src/main.rs           #   UDP receiver, WS, REST API, classification
+│   ├── src/dl_classifier.rs  #   CSINetLight CNN inference (pure Rust)
+│   ├── src/espectre.rs       #   ESPectre motion detection (legacy fallback)
+│   ├── src/vital_signs.rs    #   Heart rate & breathing estimation
+│   └── models/               #   Model weights & normalization params
+│       ├── csi_light_weights.json
+│       ├── baseline.npy
+│       ├── feat_mean.npy
+│       └── feat_std.npy
+├── training/                 # PyTorch training pipeline
+│   ├── prepare_data.py       #   JSONL → sliding windows → numpy
+│   ├── csi_model.py          #   CSINet (CNN+LSTM) & CSINetLight (CNN)
+│   ├── train_dl.py           #   Training loop with class balancing
+│   └── train_sklearn.py      #   Legacy MLP/RF/GB training
+├── ui/                       # Web dashboards (HTML/JS/Canvas)
+│   ├── heatmap.html          #   Real-time heatmap + classification
+│   ├── sleep.html            #   Sleep quality dashboard
+│   └── train.html            #   Data recording UI
+└── docker/Dockerfile         # Multi-stage build (Rust 1.85 → Debian slim)
 ```
+
+## Web Dashboard
+
+The heatmap UI shows:
+
+- **Spatial heatmap** — IDW-interpolated motion intensity across the room
+- **Classification** — DL model output with confidence (empty / lying / sitting / walking)
+- **Vital signs** — heart rate & breathing rate with confidence bars
+- **Node activity** — per-node motion energy bars
+- **Activity timeline** — scrolling classification history
+- **CSI spectrograms** — raw subcarrier amplitudes per node (expandable to fullscreen)
+
+Everforest dark theme. WebSocket updates at ~7 fps.
 
 ## API
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/health` | GET | Server health status |
+| `/health` | GET | Server health |
 | `/api/v1/sensing/latest` | GET | Latest sensing data |
-| `/api/v1/vital-signs` | GET | Heart rate & breathing rate |
-| `/api/v1/sleep/history?hours=N` | GET | Sleep log for last N hours |
-| `/api/v1/recording/start` | POST | Start recording CSI data |
+| `/api/v1/vital-signs` | GET | Heart rate & breathing |
+| `/api/v1/sleep/history?hours=N` | GET | Sleep log |
+| `/api/v1/recording/start` | POST | Start CSI recording |
 | `/api/v1/recording/stop` | POST | Stop recording |
-| `/api/v1/recording/list` | GET | List all recordings |
-| `/ws/sensing` | WS | Real-time WebSocket stream |
-
-## Sleep Quality Analysis
-
-Data logged every 10s to `/app/data/sleep_log.jsonl`. The dashboard calculates:
-
-- **Duration** — first-to-last still period
-- **Efficiency** — % time actually asleep
-- **Restlessness** — movement events per hour
-- **Avg HR/BR** — weighted by signal confidence
-- **Quality Score** — 0-100% composite
-
-Charts support drag-to-zoom, scroll zoom, and double-click to reset.
-
-## Hardware
-
-- **3x ESP32-S3** development boards (any with WiFi CSI support)
-- **WiFi access point** in the monitored room
-- **Server** — any Linux machine or VPS (Docker, ~128MB RAM)
-
-```
-        [Node 3]
-       /        \
-      /   Room    \
-     /              \
-[Node 2] ────── [Node 1]
-```
+| `/api/v1/recording/list` | GET | List recordings |
+| `/ws/sensing` | WS | Real-time data stream |
 
 ## Configuration
 
@@ -169,19 +159,23 @@ Charts support drag-to-zoom, scroll zoom, and double-click to reset.
 | `--source` | `auto` | `esp32`, `simulate`, `auto` |
 | `--http-port` | `4000` | HTTP API port |
 | `--ws-port` | `4001` | WebSocket port |
-| `--tick-ms` | `100` | Processing interval (ms) |
-| `--bind-addr` | `127.0.0.1` | Bind address (`0.0.0.0` for Docker) |
-| `--ui-path` | `ui` | Static UI files path |
+| `--tick-ms` | `100` | Processing interval |
+| `--bind-addr` | `127.0.0.1` | Bind address |
+| `--ui-path` | `ui` | Static UI path |
 
-## Training Results
+## Hardware
 
-| Model | Accuracy | Deployable in Rust |
-|-------|----------|-------------------|
-| MLP (current) | 83.0% | Yes (weight arrays) |
-| Random Forest | 82.1% | No |
-| Gradient Boosting | 87.3% | No (used as teacher for distillation) |
+- 3x ESP32-S3 dev boards (any with WiFi CSI)
+- WiFi access point in the room
+- Linux server or VPS (Docker, ~128MB RAM)
 
-More training data improves accuracy. Target: 5+ recording sessions across different conditions.
+```
+        [Node 3]
+       /        \
+      /   Room    \
+     /              \
+[Node 2] ────── [Node 1]
+```
 
 ## License
 

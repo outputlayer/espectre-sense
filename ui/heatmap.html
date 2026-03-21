@@ -8,31 +8,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
-/* ── Everforest Dark Palette ──
-   bg:      #2d353b
-   fg:      #d3c6aa
-   red:     #e67e80
-   green:   #a7c080
-   yellow:  #dbbc7f
-   teal:    #7fbbb3
-   pink:    #d699b6
-   mint:    #83c092
-   bg_dim:  #232a2e
-   bg0:     #2d353b
-   bg1:     #343f44
-   bg2:     #3d484d
-   bg3:     #475258
-   bg4:     #4f585e
-   grey0:   #7a8478
-   grey1:   #859289
-   grey2:   #9da9a0
-*/
-
 body { background: #232a2e; color: #d3c6aa; font-family: 'Inter', -apple-system, sans-serif; overflow: hidden; height: 100vh; }
 
 .layout {
   display: grid;
-  grid-template-columns: 1fr 320px;
+  grid-template-columns: 1fr 340px;
   grid-template-rows: 50px 1fr;
   height: 100vh; gap: 0;
 }
@@ -45,10 +25,14 @@ body { background: #232a2e; color: #d3c6aa; font-family: 'Inter', -apple-system,
   border-bottom: 1px solid #3d484d;
 }
 .logo { display: flex; align-items: center; gap: 10px; }
-.logo-icon { width: 26px; height: 26px; border-radius: 7px; background: linear-gradient(135deg, #7fbbb3, #a7c080); display: flex; align-items: center; justify-content: center; font-size: 13px; color: #232a2e; font-weight: 700; }
-.logo-text { font-size: 14px; font-weight: 600; color: #d3c6aa; letter-spacing: 0.3px; }
+.logo-icon { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, #7fbbb3, #a7c080); display: flex; align-items: center; justify-content: center; font-size: 13px; color: #232a2e; font-weight: 700; }
+.logo-text { font-size: 15px; font-weight: 600; color: #d3c6aa; letter-spacing: 0.3px; }
 .logo-sub { font-size: 11px; color: #7a8478; font-weight: 400; margin-left: 6px; }
-.header-right { display: flex; align-items: center; gap: 14px; }
+.header-right { display: flex; align-items: center; gap: 16px; }
+.header-badge { display: flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 4px; background: rgba(167,192,128,0.08); border: 1px solid rgba(167,192,128,0.15); }
+.header-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: #a7c080; animation: pulse-dot 2s ease-in-out infinite; }
+.header-badge .text { font-size: 10px; font-weight: 500; color: #a7c080; font-family: 'JetBrains Mono'; }
+@keyframes pulse-dot { 0%,100%{opacity:1}50%{opacity:0.4} }
 .ws-dot { width: 7px; height: 7px; border-radius: 50%; }
 .ws-dot.live { background: #a7c080; box-shadow: 0 0 6px #a7c08066; }
 .ws-dot.off { background: #e67e80; box-shadow: 0 0 6px #e67e8066; }
@@ -67,30 +51,56 @@ body { background: #232a2e; color: #d3c6aa; font-family: 'Inter', -apple-system,
 .card { padding: 14px 16px; border-bottom: 1px solid #343f44; }
 .card-title { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; color: #7a8478; margin-bottom: 10px; }
 
-/* Classification */
-.class-display { display: flex; align-items: center; gap: 12px; }
-.class-dot { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: all 0.4s; }
-.class-dot.absent { background: #343f44; color: #7fbbb3; }
-.class-dot.present_still { background: rgba(167,192,128,0.12); color: #a7c080; }
-.class-dot.present_moving { background: rgba(219,188,127,0.12); color: #dbbc7f; }
-.class-dot.active { background: rgba(230,126,128,0.12); color: #e67e80; }
-.class-info { flex: 1; }
-.class-name { font-size: 17px; font-weight: 600; transition: color 0.4s; }
-.class-name.absent { color: #7fbbb3; }
-.class-name.present_still { color: #a7c080; }
-.class-name.present_moving { color: #dbbc7f; }
-.class-name.active { color: #e67e80; }
-.class-meta { font-size: 11px; color: #7a8478; margin-top: 2px; }
-.conf-bar { width: 100%; height: 3px; background: #343f44; border-radius: 2px; margin-top: 8px; }
-.conf-fill { height: 100%; border-radius: 2px; transition: width 0.4s, background 0.4s; }
+/* Status card — hero */
+.status-hero {
+  display: flex; align-items: stretch; gap: 14px; margin-bottom: 12px;
+}
+.status-ring-wrap { position: relative; }
+.status-ring {
+  width: 56px; height: 56px; border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; transition: all 0.5s ease;
+  position: relative;
+  border: 2px solid transparent;
+}
+.status-ring.absent { background: rgba(127,187,179,0.06); color: #7fbbb3; border-color: rgba(127,187,179,0.2); }
+.status-ring.lying_still { background: rgba(214,153,182,0.08); color: #d699b6; border-color: rgba(214,153,182,0.25); }
+.status-ring.present_still { background: rgba(167,192,128,0.08); color: #a7c080; border-color: rgba(167,192,128,0.25); }
+.status-ring.present_moving { background: rgba(219,188,127,0.08); color: #dbbc7f; border-color: rgba(219,188,127,0.25); }
+.status-ring.active { background: rgba(230,126,128,0.08); color: #e67e80; border-color: rgba(230,126,128,0.25); }
+
+.status-info { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+.status-label {
+  font-size: 19px; font-weight: 600; transition: color 0.4s; line-height: 1.2;
+}
+.status-label.absent { color: #7fbbb3; }
+.status-label.lying_still { color: #d699b6; }
+.status-label.present_still { color: #a7c080; }
+.status-label.present_moving { color: #dbbc7f; }
+.status-label.active { color: #e67e80; }
+.status-sub { font-size: 11px; color: #859289; margin-top: 2px; }
+
+/* Confidence meter */
+.conf-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.conf-pct { font-family: 'JetBrains Mono'; font-size: 12px; font-weight: 600; min-width: 42px; text-align: right; transition: color 0.4s; }
+.conf-track { flex: 1; height: 6px; background: #343f44; border-radius: 3px; overflow: hidden; }
+.conf-fill { height: 100%; border-radius: 3px; transition: width 0.4s, background 0.4s; }
+
+/* Person count */
+.persons-row { display: flex; align-items: center; gap: 10px; padding-top: 8px; border-top: 1px solid #343f44; }
+.persons-indicator { display: flex; gap: 5px; }
+.person-pip { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid #475258; transition: all 0.3s; }
+.person-pip.on { border-color: transparent; }
+.persons-text { font-size: 12px; color: #859289; font-weight: 500; }
 
 /* Vitals */
 .vitals-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.vital-card { background: #343f44; border: 1px solid #3d484d; border-radius: 8px; padding: 10px; }
+.vital-card { background: #343f44; border: 1px solid #3d484d; border-radius: 8px; padding: 10px; position: relative; overflow: hidden; }
+.vital-stripe { position: absolute; top: 0; left: 0; right: 0; height: 2px; border-radius: 8px 8px 0 0; opacity: 0.5; }
 .vital-header { display: flex; align-items: center; gap: 5px; margin-bottom: 5px; }
-.vital-icon { font-size: 13px; }
+.vital-icon { font-size: 14px; }
 .vital-label { font-size: 9px; color: #7a8478; text-transform: uppercase; letter-spacing: 0.5px; }
-.vital-value { font-family: 'JetBrains Mono', monospace; font-size: 20px; font-weight: 600; }
+.vital-value { font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 600; }
 .vital-unit { font-size: 10px; color: #7a8478; margin-left: 2px; }
 .vital-conf { width: 100%; height: 2px; background: #3d484d; border-radius: 1px; margin-top: 5px; }
 .vital-conf-fill { height: 100%; border-radius: 1px; transition: width 0.4s; }
@@ -116,7 +126,6 @@ body { background: #232a2e; color: #d3c6aa; font-family: 'Inter', -apple-system,
 .spec-label { position: absolute; top: 3px; left: 6px; font-size: 9px; color: rgba(211,198,170,0.3); z-index: 1; font-family: 'JetBrains Mono'; }
 .spec-panel canvas { width: 100%; height: 100%; display: block; }
 
-/* Expandable / Fullscreen */
 .card-title.expandable { cursor: pointer; display: flex; align-items: center; gap: 6px; }
 .card-title.expandable::after { content: '\u2922'; font-size: 12px; opacity: 0.3; }
 .card-title.expandable:hover { color: #d3c6aa; }
@@ -165,6 +174,10 @@ body { background: #232a2e; color: #d3c6aa; font-family: 'Inter', -apple-system,
       <span class="logo-sub">Room Monitor</span>
     </div>
     <div class="header-right">
+      <div class="header-badge">
+        <div class="dot"></div>
+        <span class="text">CSINetLight</span>
+      </div>
       <span class="fps-label" id="fps">— fps</span>
       <div style="display:flex;align-items:center;gap:6px">
         <span class="ws-dot off" id="wsDot"></span>
@@ -175,25 +188,40 @@ body { background: #232a2e; color: #d3c6aa; font-family: 'Inter', -apple-system,
   <div class="canvas-area"><canvas id="roomCanvas"></canvas></div>
   <div class="sidebar">
     <div class="card">
-      <div class="card-title">Status</div>
-      <div class="class-display">
-        <div class="class-dot absent" id="classDot">?</div>
-        <div class="class-info">
-          <div class="class-name absent" id="className">Initializing</div>
-          <div class="class-meta" id="classMeta">Waiting for data...</div>
+      <div class="card-title">Classification</div>
+      <div class="status-hero">
+        <div class="status-ring-wrap">
+          <div class="status-ring absent" id="statusRing">?</div>
+        </div>
+        <div class="status-info">
+          <div class="status-label absent" id="statusLabel">Initializing</div>
+          <div class="status-sub" id="statusSub">Waiting for data...</div>
         </div>
       </div>
-      <div class="conf-bar"><div class="conf-fill" id="confFill" style="width:0;background:#7fbbb3"></div></div>
+      <div class="conf-row">
+        <span class="conf-pct" id="confPct" style="color:#7fbbb3">0%</span>
+        <div class="conf-track"><div class="conf-fill" id="confFill" style="width:0;background:#7fbbb3"></div></div>
+      </div>
+      <div class="persons-row">
+        <div class="persons-indicator" id="personsDots">
+          <div class="person-pip"></div>
+          <div class="person-pip"></div>
+          <div class="person-pip"></div>
+        </div>
+        <span class="persons-text" id="personsText">No persons</span>
+      </div>
     </div>
     <div class="card">
       <div class="card-title">Vital Signs</div>
       <div class="vitals-grid">
         <div class="vital-card">
+          <div class="vital-stripe" style="background:#e67e80"></div>
           <div class="vital-header"><span class="vital-icon heart-pulse" id="heartIcon" style="color:#e67e80">&#9829;</span><span class="vital-label">Heart Rate</span></div>
           <div><span class="vital-value" id="hrVal" style="color:#e67e80">—</span><span class="vital-unit">bpm</span></div>
           <div class="vital-conf"><div class="vital-conf-fill" id="hrConf" style="width:0;background:#e67e80"></div></div>
         </div>
         <div class="vital-card">
+          <div class="vital-stripe" style="background:#7fbbb3"></div>
           <div class="vital-header"><span class="vital-icon" style="color:#7fbbb3">&#9681;</span><span class="vital-label">Breathing</span></div>
           <div><span class="vital-value" id="brVal" style="color:#7fbbb3">—</span><span class="vital-unit">br/m</span></div>
           <div class="vital-conf"><div class="vital-conf-fill" id="brConf" style="width:0;background:#7fbbb3"></div></div>
@@ -237,20 +265,12 @@ const WS_URL = (() => {
   return 'ws://' + h + ':' + p + '/ws/sensing';
 })();
 
-// ── Everforest-inspired heatmap colors ──
-// bg_dim #232a2e → green #a7c080 → yellow #dbbc7f → red #e67e80
 function heatColor(t) {
   t = Math.max(0, Math.min(1, t));
   const stops = [
-    [0.00, 35, 42, 46],    // #232a2e bg_dim
-    [0.10, 45, 55, 58],    // #2d373a slightly lighter
-    [0.25, 52, 79, 68],    // dark teal hint
-    [0.40, 75, 120, 90],   // toward green
-    [0.50, 131, 192, 146], // #83c092 mint
-    [0.60, 167, 192, 128], // #a7c080 green
-    [0.72, 219, 188, 127], // #dbbc7f yellow
-    [0.85, 220, 140, 100], // orange transition
-    [1.00, 230, 126, 128], // #e67e80 red
+    [0.00, 35, 42, 46], [0.10, 45, 55, 58], [0.25, 52, 79, 68],
+    [0.40, 75, 120, 90], [0.50, 131, 192, 146], [0.60, 167, 192, 128],
+    [0.72, 219, 188, 127], [0.85, 220, 140, 100], [1.00, 230, 126, 128],
   ];
   for (let i = 0; i < stops.length - 1; i++) {
     if (t <= stops[i+1][0]) {
@@ -265,373 +285,337 @@ function heatColor(t) {
   return [230, 126, 128];
 }
 
-// Spectrogram: dark → teal → mint → green
 function spectroColor(t) {
   t = Math.max(0, Math.min(1, t));
-  if (t < 0.33) {
-    const s = t / 0.33;
-    return [Math.round(35+s*10), Math.round(42+s*80), Math.round(46+s*90)];
-  }
-  if (t < 0.66) {
-    const s = (t-0.33) / 0.33;
-    return [Math.round(45+s*122), Math.round(122+s*70), Math.round(136-s*8)];
-  }
-  const s = (t-0.66) / 0.34;
-  return [Math.round(167+s*63), Math.round(192-s*4), Math.round(128-s*0)];
+  if (t < 0.33) { const s=t/0.33; return [Math.round(35+s*10),Math.round(42+s*80),Math.round(46+s*90)]; }
+  if (t < 0.66) { const s=(t-0.33)/0.33; return [Math.round(45+s*122),Math.round(122+s*70),Math.round(136-s*8)]; }
+  const s=(t-0.66)/0.34; return [Math.round(167+s*63),Math.round(192-s*4),Math.round(128)];
 }
 
-const classColors = {
-  absent:        { fg: '#7fbbb3', bar: '#7fbbb3', icon: '—' },
-  present_still: { fg: '#a7c080', bar: '#a7c080', icon: '&#9673;' },
-  present_moving:{ fg: '#dbbc7f', bar: '#dbbc7f', icon: '&#10230;' },
-  active:        { fg: '#e67e80', bar: '#e67e80', icon: '&#9889;' },
-};
-const classLabels = {
-  absent: 'Room Empty', present_still: 'Present — Still',
-  present_moving: 'Present — Moving', active: 'Active Motion'
+const classConfig = {
+  absent:        { fg: '#7fbbb3', label: 'Room Empty',       icon: '—',  tlY: 0.12 },
+  lying_still:   { fg: '#d699b6', label: 'Lying Down',       icon: '\u23E4', tlY: 0.35 },
+  present_still: { fg: '#a7c080', label: 'Present \u2014 Sitting', icon: '\u25CF', tlY: 0.55 },
+  present_moving:{ fg: '#dbbc7f', label: 'Present \u2014 Walking', icon: '\u2192', tlY: 0.75 },
+  active:        { fg: '#e67e80', label: 'Active Motion',    icon: '\u26A1', tlY: 0.92 },
 };
 const nodeColors = ['#7fbbb3', '#d699b6', '#dbbc7f'];
 
 // ── State ──
-const nodePower = [0,0,0], nodeMotion = [0,0,0], nodeMotionSmooth = [0,0,0];
-const prevAmps = [null,null,null];
-const SPEC_W = 150, specData = [[],[],[]];
-let lastClassification = null, lastFeatures = null, lastVitals = null;
-const hrHistory = [];
-const CLASS_HISTORY_SIZE = 5, classHistory = [];
-let smoothedClass = 'absent', smoothedConf = 0;
-let totalMsgs = 0, frameCount = 0, lastFpsTime = Date.now();
-const timelineData = [], TIMELINE_MAX = 300;
-const ripples = [];
+const nodePower=[0,0,0], nodeMotion=[0,0,0], nodeMotionSmooth=[0,0,0];
+const prevAmps=[null,null,null];
+const SPEC_W=150, specData=[[],[],[]];
+let lastClassification=null, lastFeatures=null, lastVitals=null;
+let lastEstPersons=0;
+const hrHistory=[];
+const CLASS_HISTORY_SIZE=5, classHistory=[];
+let smoothedClass='absent', smoothedConf=0;
+let totalMsgs=0, frameCount=0, lastFpsTime=Date.now();
+const timelineData=[], TIMELINE_MAX=300;
+const ripples=[];
 
-const roomCanvas = document.getElementById('roomCanvas');
-const roomCtx = roomCanvas.getContext('2d');
-const tlCanvas = document.getElementById('timelineCanvas');
-const tlCtx = tlCanvas.getContext('2d');
-const specCanvases = ['c1','c2','c3'].map(id => document.getElementById(id));
-const specCtxs = specCanvases.map(c => c.getContext('2d'));
+const roomCanvas=document.getElementById('roomCanvas');
+const roomCtx=roomCanvas.getContext('2d');
+const tlCanvas=document.getElementById('timelineCanvas');
+const tlCtx=tlCanvas.getContext('2d');
+const specCanvases=['c1','c2','c3'].map(id=>document.getElementById(id));
+const specCtxs=specCanvases.map(c=>c.getContext('2d'));
 
-function resizeAll() {
-  const dpr = devicePixelRatio || 1;
-  [roomCanvas, tlCanvas, ...specCanvases].forEach(c => {
-    const r = c.parentElement.getBoundingClientRect();
-    c.width = Math.round(r.width * dpr);
-    c.height = Math.round(r.height * dpr);
+function resizeAll(){
+  const dpr=devicePixelRatio||1;
+  [roomCanvas,tlCanvas,...specCanvases].forEach(c=>{
+    const r=c.parentElement.getBoundingClientRect();
+    c.width=Math.round(r.width*dpr); c.height=Math.round(r.height*dpr);
   });
 }
-window.addEventListener('resize', resizeAll);
-setTimeout(resizeAll, 50);
-resizeAll();
+window.addEventListener('resize',resizeAll);
+setTimeout(resizeAll,50); resizeAll();
 
-const nodePos = [
-  { x: 0.15, y: 0.12 },
-  { x: 0.85, y: 0.12 },
-  { x: 0.50, y: 0.88 },
-];
+const nodePos=[{x:0.15,y:0.12},{x:0.85,y:0.12},{x:0.50,y:0.88}];
 
-function processMessage(d) {
-  if (d.nodes && Array.isArray(d.nodes)) {
-    for (const node of d.nodes) {
-      const nid = node.node_id, amps = node.amplitude;
-      if (!amps || nid < 1 || nid > 3) continue;
-      const idx = nid - 1;
-      const sum = amps.reduce((a,b)=>a+b,0);
-      nodePower[idx] = nodePower[idx]*0.8 + (sum/(amps.length||1))*0.2;
-      if (prevAmps[idx]) {
-        const n = Math.min(prevAmps[idx].length, amps.length);
-        let diff = 0;
-        for (let i=0;i<n;i++) diff += (amps[i]-prevAmps[idx][i])**2;
-        const raw = diff/(n||1);
-        nodeMotion[idx] = nodeMotion[idx]*0.6 + raw*0.4;
-        // Asymmetric: fast rise, fast decay
-        if (raw > nodeMotionSmooth[idx])
-          nodeMotionSmooth[idx] = nodeMotionSmooth[idx]*0.5 + raw*0.5;
-        else
-          nodeMotionSmooth[idx] = nodeMotionSmooth[idx]*0.4 + raw*0.6;
+function processMessage(d){
+  if(d.nodes&&Array.isArray(d.nodes)){
+    for(const node of d.nodes){
+      const nid=node.node_id, amps=node.amplitude;
+      if(!amps||nid<1||nid>3) continue;
+      const idx=nid-1;
+      const sum=amps.reduce((a,b)=>a+b,0);
+      nodePower[idx]=nodePower[idx]*0.8+(sum/(amps.length||1))*0.2;
+      if(prevAmps[idx]){
+        const n=Math.min(prevAmps[idx].length,amps.length);
+        let diff=0; for(let i=0;i<n;i++) diff+=(amps[i]-prevAmps[idx][i])**2;
+        const raw=diff/(n||1);
+        nodeMotion[idx]=nodeMotion[idx]*0.6+raw*0.4;
+        if(raw>nodeMotionSmooth[idx]) nodeMotionSmooth[idx]=nodeMotionSmooth[idx]*0.5+raw*0.5;
+        else nodeMotionSmooth[idx]=nodeMotionSmooth[idx]*0.4+raw*0.6;
       }
-      prevAmps[idx] = amps.slice();
+      prevAmps[idx]=amps.slice();
       specData[idx].push(amps.slice());
-      if (specData[idx].length > SPEC_W) specData[idx].shift();
+      if(specData[idx].length>SPEC_W) specData[idx].shift();
     }
   }
-  if (d.classification) {
-    lastClassification = d.classification;
-    const cls = d.classification.motion_level, conf = d.classification.confidence || 0;
-    classHistory.push({ cls, conf });
-    if (classHistory.length > CLASS_HISTORY_SIZE) classHistory.shift();
-    const votes = {};
-    for (const h of classHistory) votes[h.cls] = (votes[h.cls]||0)+h.conf;
-    let best = 'absent', bestS = 0;
-    for (const [k,v] of Object.entries(votes)) if (v > bestS) { best=k; bestS=v; }
-    const total = Object.values(votes).reduce((a,b)=>a+b,0);
-    smoothedClass = best;
-    smoothedConf = total > 0 ? bestS/total : 0;
-    timelineData.push({ time: Date.now(), cls: best, conf: smoothedConf });
-    if (timelineData.length > TIMELINE_MAX) timelineData.shift();
+  if(d.classification){
+    lastClassification=d.classification;
+    const cls=d.classification.motion_level, conf=d.classification.confidence||0;
+    classHistory.push({cls,conf});
+    if(classHistory.length>CLASS_HISTORY_SIZE) classHistory.shift();
+    const votes={};
+    for(const h of classHistory) votes[h.cls]=(votes[h.cls]||0)+h.conf;
+    let best='absent',bestS=0;
+    for(const[k,v] of Object.entries(votes)) if(v>bestS){best=k;bestS=v;}
+    const total=Object.values(votes).reduce((a,b)=>a+b,0);
+    smoothedClass=best; smoothedConf=total>0?bestS/total:0;
+    timelineData.push({time:Date.now(),cls:best,conf:smoothedConf});
+    if(timelineData.length>TIMELINE_MAX) timelineData.shift();
   }
-  if (d.features) lastFeatures = d.features;
-  if (d.vital_signs) {
-    lastVitals = d.vital_signs;
-    if (lastVitals.heart_rate_bpm > 0) {
-      hrHistory.push(lastVitals.heart_rate_bpm);
-      if (hrHistory.length > 60) hrHistory.shift();
-    }
+  if(d.estimated_persons!==undefined) lastEstPersons=d.estimated_persons;
+  if(d.features) lastFeatures=d.features;
+  if(d.vital_signs){
+    lastVitals=d.vital_signs;
+    if(lastVitals.heart_rate_bpm>0){ hrHistory.push(lastVitals.heart_rate_bpm); if(hrHistory.length>60) hrHistory.shift(); }
   }
 }
 
-function drawRoom() {
-  const dpr = devicePixelRatio || 1;
-  const W = roomCanvas.width, H = roomCanvas.height;
-  const pad = 28*dpr, rw = W-pad*2, rh = H-pad*2;
-  const np = nodePos.map(n => ({ px: pad+n.x*rw, py: pad+n.y*rh }));
-  const maxM = Math.max(0.3, ...nodeMotionSmooth);
+function drawRoom(){
+  const dpr=devicePixelRatio||1;
+  const W=roomCanvas.width, H=roomCanvas.height;
+  const pad=28*dpr, rw=W-pad*2, rh=H-pad*2;
+  const np=nodePos.map(n=>({px:pad+n.x*rw,py:pad+n.y*rh}));
+  const maxM=Math.max(0.3,...nodeMotionSmooth);
 
-  roomCtx.fillStyle = '#232a2e';
-  roomCtx.fillRect(0,0,W,H);
+  roomCtx.fillStyle='#232a2e'; roomCtx.fillRect(0,0,W,H);
 
-  // IDW heatmap
-  const step = Math.max(2, Math.round(4*dpr));
-  const imgW = Math.ceil(rw/step), imgH = Math.ceil(rh/step);
-  const off = document.createElement('canvas');
-  off.width = imgW; off.height = imgH;
-  const oc = off.getContext('2d');
-  const img = oc.createImageData(imgW, imgH);
-  const px = img.data;
-  for (let yi=0; yi<imgH; yi++) {
-    for (let xi=0; xi<imgW; xi++) {
-      const x = pad+(xi+0.5)*step, y = pad+(yi+0.5)*step;
-      let wS=0, vS=0;
-      for (let i=0;i<np.length;i++) {
+  // Heatmap
+  const step=Math.max(2,Math.round(4*dpr));
+  const imgW=Math.ceil(rw/step), imgH=Math.ceil(rh/step);
+  const off=document.createElement('canvas'); off.width=imgW; off.height=imgH;
+  const oc=off.getContext('2d');
+  const img=oc.createImageData(imgW,imgH); const px=img.data;
+  for(let yi=0;yi<imgH;yi++){
+    for(let xi=0;xi<imgW;xi++){
+      const x=pad+(xi+0.5)*step, y=pad+(yi+0.5)*step;
+      let wS=0,vS=0;
+      for(let i=0;i<np.length;i++){
         const dx=x-np[i].px, dy=y-np[i].py;
-        const d = Math.sqrt(dx*dx+dy*dy)+1;
-        const w = 1/(d*d);
-        wS += w; vS += w*nodeMotionSmooth[i];
+        const d=Math.sqrt(dx*dx+dy*dy)+1;
+        const w=1/(d*d); wS+=w; vS+=w*nodeMotionSmooth[i];
       }
-      const t = Math.pow(Math.min(1, (vS/wS)/maxM), 0.65);
-      const [r,g,b] = heatColor(t);
-      const idx = (yi*imgW+xi)*4;
-      px[idx]=r; px[idx+1]=g; px[idx+2]=b; px[idx+3]=255;
+      const t=Math.pow(Math.min(1,(vS/wS)/maxM),0.65);
+      const[r,g,b]=heatColor(t);
+      const idx=(yi*imgW+xi)*4;
+      px[idx]=r;px[idx+1]=g;px[idx+2]=b;px[idx+3]=255;
     }
   }
-  oc.putImageData(img, 0, 0);
-  roomCtx.save();
-  roomCtx.imageSmoothingEnabled = true;
-  roomCtx.imageSmoothingQuality = 'high';
-  const cr = 10*dpr;
+  oc.putImageData(img,0,0);
+  roomCtx.save(); roomCtx.imageSmoothingEnabled=true; roomCtx.imageSmoothingQuality='high';
+  const cr=10*dpr;
   roomCtx.beginPath(); roomCtx.roundRect(pad,pad,rw,rh,cr); roomCtx.clip();
-  roomCtx.drawImage(off, pad, pad, rw, rh);
-  roomCtx.restore();
+  roomCtx.drawImage(off,pad,pad,rw,rh); roomCtx.restore();
 
   // Border
-  roomCtx.strokeStyle = '#475258';
-  roomCtx.lineWidth = 1*dpr;
+  roomCtx.strokeStyle='#475258'; roomCtx.lineWidth=1*dpr;
   roomCtx.beginPath(); roomCtx.roundRect(pad,pad,rw,rh,cr); roomCtx.stroke();
 
   // Grid
   roomCtx.save();
   roomCtx.beginPath(); roomCtx.roundRect(pad,pad,rw,rh,cr); roomCtx.clip();
-  roomCtx.strokeStyle = 'rgba(122,132,120,0.06)';
-  roomCtx.lineWidth = 0.5*dpr;
-  for (let i=1;i<6;i++) {
+  roomCtx.strokeStyle='rgba(122,132,120,0.06)'; roomCtx.lineWidth=0.5*dpr;
+  for(let i=1;i<6;i++){
     const gx=pad+rw*i/6, gy=pad+rh*i/6;
-    roomCtx.beginPath(); roomCtx.moveTo(gx,pad); roomCtx.lineTo(gx,pad+rh); roomCtx.stroke();
-    roomCtx.beginPath(); roomCtx.moveTo(pad,gy); roomCtx.lineTo(pad+rw,gy); roomCtx.stroke();
+    roomCtx.beginPath();roomCtx.moveTo(gx,pad);roomCtx.lineTo(gx,pad+rh);roomCtx.stroke();
+    roomCtx.beginPath();roomCtx.moveTo(pad,gy);roomCtx.lineTo(pad+rw,gy);roomCtx.stroke();
   }
   roomCtx.restore();
 
-  // Connection lines
-  for (let i=0;i<np.length;i++) for (let j=i+1;j<np.length;j++) {
-    const avg = (nodeMotionSmooth[i]+nodeMotionSmooth[j])/2;
-    const intensity = Math.min(1, avg/maxM);
-    roomCtx.strokeStyle = `rgba(127,187,179,${0.04+intensity*0.15})`;
-    roomCtx.lineWidth = (0.5+intensity*1.5)*dpr;
+  // Node connections
+  for(let i=0;i<np.length;i++) for(let j=i+1;j<np.length;j++){
+    const avg=(nodeMotionSmooth[i]+nodeMotionSmooth[j])/2;
+    const intensity=Math.min(1,avg/maxM);
+    roomCtx.strokeStyle=`rgba(127,187,179,${0.04+intensity*0.15})`;
+    roomCtx.lineWidth=(0.5+intensity*1.5)*dpr;
     roomCtx.setLineDash([4*dpr,6*dpr]);
-    roomCtx.beginPath(); roomCtx.moveTo(np[i].px,np[i].py); roomCtx.lineTo(np[j].px,np[j].py); roomCtx.stroke();
+    roomCtx.beginPath();roomCtx.moveTo(np[i].px,np[i].py);roomCtx.lineTo(np[j].px,np[j].py);roomCtx.stroke();
     roomCtx.setLineDash([]);
   }
 
   // Ripples
-  for (let i=ripples.length-1;i>=0;i--) {
-    const r = ripples[i];
-    r.r += 1.5*dpr; r.alpha -= 0.015;
-    if (r.alpha <= 0) { ripples.splice(i,1); continue; }
-    roomCtx.strokeStyle = r.color.replace('A', r.alpha.toFixed(2));
-    roomCtx.lineWidth = 1.2*dpr;
-    roomCtx.beginPath(); roomCtx.arc(r.x,r.y,r.r,0,Math.PI*2); roomCtx.stroke();
+  for(let i=ripples.length-1;i>=0;i--){
+    const r=ripples[i]; r.r+=1.5*dpr; r.alpha-=0.015;
+    if(r.alpha<=0){ripples.splice(i,1);continue;}
+    roomCtx.strokeStyle=r.color.replace('A',r.alpha.toFixed(2));
+    roomCtx.lineWidth=1.2*dpr;
+    roomCtx.beginPath();roomCtx.arc(r.x,r.y,r.r,0,Math.PI*2);roomCtx.stroke();
   }
-  for (let i=0;i<np.length;i++) {
-    if (nodeMotion[i] > maxM*0.4 && Math.random() < 0.06) {
-      const c = nodeColors[i];
-      const rgb = i===0?'127,187,179':i===1?'214,153,182':'219,188,127';
-      ripples.push({ x:np[i].px, y:np[i].py, r:6*dpr, alpha:0.35, color:`rgba(${rgb},A)` });
+  for(let i=0;i<np.length;i++){
+    if(nodeMotion[i]>maxM*0.4&&Math.random()<0.06){
+      const rgb=i===0?'127,187,179':i===1?'214,153,182':'219,188,127';
+      ripples.push({x:np[i].px,y:np[i].py,r:6*dpr,alpha:0.35,color:`rgba(${rgb},A)`});
     }
   }
 
-  // Node markers
-  for (let i=0;i<nodePos.length;i++) {
+  // Nodes
+  for(let i=0;i<nodePos.length;i++){
     const x=np[i].px, y=np[i].py;
-    const ml = Math.min(1, nodeMotionSmooth[i]/maxM);
-    const r = (7+ml*5)*dpr;
-    // Glow
-    const glR = r*(2+ml*3);
-    const grd = roomCtx.createRadialGradient(x,y,r*0.3,x,y,glR);
-    grd.addColorStop(0, nodeColors[i] + Math.round((0.12+ml*0.2)*255).toString(16).padStart(2,'0'));
-    grd.addColorStop(1, 'transparent');
-    roomCtx.fillStyle = grd;
-    roomCtx.beginPath(); roomCtx.arc(x,y,glR,0,Math.PI*2); roomCtx.fill();
-    // Circle
-    roomCtx.beginPath(); roomCtx.arc(x,y,r,0,Math.PI*2);
-    roomCtx.fillStyle = nodeColors[i]; roomCtx.globalAlpha=0.85; roomCtx.fill(); roomCtx.globalAlpha=1;
-    roomCtx.strokeStyle = '#d3c6aa44'; roomCtx.lineWidth = 1*dpr; roomCtx.stroke();
-    // Label
-    roomCtx.fillStyle = '#232a2e';
-    roomCtx.font = `bold ${9*dpr}px 'JetBrains Mono'`;
-    roomCtx.textAlign = 'center'; roomCtx.textBaseline = 'middle';
-    roomCtx.fillText(i+1, x, y);
-    // Motion value
-    roomCtx.fillStyle = '#9da9a0';
-    roomCtx.font = `${8*dpr}px 'JetBrains Mono'`;
-    roomCtx.fillText(nodeMotion[i].toFixed(1), x, y+r+9*dpr);
+    const ml=Math.min(1,nodeMotionSmooth[i]/maxM);
+    const r=(7+ml*5)*dpr;
+    const glR=r*(2+ml*3);
+    const grd=roomCtx.createRadialGradient(x,y,r*0.3,x,y,glR);
+    grd.addColorStop(0,nodeColors[i]+Math.round((0.12+ml*0.2)*255).toString(16).padStart(2,'0'));
+    grd.addColorStop(1,'transparent');
+    roomCtx.fillStyle=grd; roomCtx.beginPath();roomCtx.arc(x,y,glR,0,Math.PI*2);roomCtx.fill();
+    roomCtx.beginPath();roomCtx.arc(x,y,r,0,Math.PI*2);
+    roomCtx.fillStyle=nodeColors[i];roomCtx.globalAlpha=0.85;roomCtx.fill();roomCtx.globalAlpha=1;
+    roomCtx.strokeStyle='#d3c6aa44';roomCtx.lineWidth=1*dpr;roomCtx.stroke();
+    roomCtx.fillStyle='#232a2e';
+    roomCtx.font=`bold ${9*dpr}px 'JetBrains Mono'`;
+    roomCtx.textAlign='center';roomCtx.textBaseline='middle';
+    roomCtx.fillText(i+1,x,y);
+    roomCtx.fillStyle='#9da9a0';roomCtx.font=`${8*dpr}px 'JetBrains Mono'`;
+    roomCtx.fillText(nodeMotion[i].toFixed(1),x,y+r+9*dpr);
   }
 
   // HR waveform
-  if (hrHistory.length > 5) {
-    const cx=pad+rw-90*dpr, cy=pad+10*dpr, cw=75*dpr, ch=22*dpr;
-    roomCtx.save(); roomCtx.globalAlpha=0.5;
-    roomCtx.strokeStyle = '#e67e80'; roomCtx.lineWidth = 1*dpr;
-    roomCtx.beginPath();
-    const hrMin=Math.min(...hrHistory)-5, hrMax=Math.max(...hrHistory)+5, hrR=hrMax-hrMin||1;
-    for (let i=0;i<hrHistory.length;i++) {
+  if(hrHistory.length>5){
+    const cx=pad+rw-90*dpr,cy=pad+10*dpr,cw=75*dpr,ch=22*dpr;
+    roomCtx.save();roomCtx.globalAlpha=0.5;
+    roomCtx.strokeStyle='#e67e80';roomCtx.lineWidth=1*dpr;roomCtx.beginPath();
+    const hrMin=Math.min(...hrHistory)-5,hrMax=Math.max(...hrHistory)+5,hrR=hrMax-hrMin||1;
+    for(let i=0;i<hrHistory.length;i++){
       const x=cx+(i/(hrHistory.length-1))*cw, y=cy+ch-((hrHistory[i]-hrMin)/hrR)*ch;
       i===0?roomCtx.moveTo(x,y):roomCtx.lineTo(x,y);
     }
     roomCtx.stroke();
-    roomCtx.fillStyle='#e67e80'; roomCtx.font=`600 ${7*dpr}px Inter`;
-    roomCtx.textAlign='right'; roomCtx.fillText('HR',cx-3*dpr,cy+ch/2+3*dpr);
+    roomCtx.fillStyle='#e67e80';roomCtx.font=`600 ${7*dpr}px Inter`;
+    roomCtx.textAlign='right';roomCtx.fillText('HR',cx-3*dpr,cy+ch/2+3*dpr);
     roomCtx.restore();
   }
 
-  // Color scale
-  const lx=pad+rw-12*dpr, ly=pad+rh-55*dpr, lh=45*dpr, lw=6*dpr;
-  for (let i=0;i<lh;i++) {
-    const [r,g,b]=heatColor(1-i/lh);
-    roomCtx.fillStyle=`rgb(${r},${g},${b})`;
-    roomCtx.fillRect(lx,ly+i,lw,1);
-  }
-  roomCtx.strokeStyle='#47525833'; roomCtx.lineWidth=0.5;
-  roomCtx.strokeRect(lx,ly,lw,lh);
+  // Scale
+  const lx=pad+rw-12*dpr,ly=pad+rh-55*dpr,lh=45*dpr,lw=6*dpr;
+  for(let i=0;i<lh;i++){const[r,g,b]=heatColor(1-i/lh);roomCtx.fillStyle=`rgb(${r},${g},${b})`;roomCtx.fillRect(lx,ly+i,lw,1);}
+  roomCtx.strokeStyle='#47525833';roomCtx.lineWidth=0.5;roomCtx.strokeRect(lx,ly,lw,lh);
 
   // Status badge
-  const cc = classColors[smoothedClass] || classColors.absent;
-  roomCtx.save(); roomCtx.globalAlpha=0.9;
-  const bx=pad+6*dpr, by=pad+rh-30*dpr;
-  roomCtx.fillStyle = '#2d353bcc';
-  roomCtx.beginPath(); roomCtx.roundRect(bx,by,170*dpr,24*dpr,5*dpr); roomCtx.fill();
+  const cc=classConfig[smoothedClass]||classConfig.absent;
+  roomCtx.save();roomCtx.globalAlpha=0.9;
+  const bx=pad+6*dpr,by=pad+rh-30*dpr;
+  roomCtx.fillStyle='#2d353bcc';
+  roomCtx.beginPath();roomCtx.roundRect(bx,by,180*dpr,24*dpr,5*dpr);roomCtx.fill();
   roomCtx.globalAlpha=1;
   roomCtx.fillStyle=cc.fg;
-  roomCtx.beginPath(); roomCtx.arc(bx+12*dpr,by+12*dpr,3.5*dpr,0,Math.PI*2); roomCtx.fill();
-  roomCtx.font=`600 ${10*dpr}px Inter`; roomCtx.textAlign='left';
-  roomCtx.fillText(classLabels[smoothedClass]||smoothedClass, bx+22*dpr, by+15*dpr);
+  roomCtx.beginPath();roomCtx.arc(bx+12*dpr,by+12*dpr,3.5*dpr,0,Math.PI*2);roomCtx.fill();
+  roomCtx.font=`600 ${10*dpr}px Inter`;roomCtx.textAlign='left';
+  roomCtx.fillText(cc.label+' \u2014 '+(smoothedConf*100).toFixed(0)+'%', bx+22*dpr,by+15*dpr);
   roomCtx.restore();
 }
 
-function drawTimelineOn(ctx, canvas) {
-  const dpr = devicePixelRatio || 1;
+function drawTimelineOn(ctx,canvas){
+  const dpr=devicePixelRatio||1;
   const W=canvas.width, H=canvas.height;
-  ctx.fillStyle = '#343f44'; ctx.fillRect(0,0,W,H);
-  if (timelineData.length < 2) return;
-  const colW = W/TIMELINE_MAX;
-  const classH = { absent:0.15, present_still:0.4, present_moving:0.65, active:0.9 };
-  for (let i=0;i<timelineData.length;i++) {
-    const d=timelineData[i], cc=classColors[d.cls]||classColors.absent;
-    const x=(TIMELINE_MAX-timelineData.length+i)*colW, h=(classH[d.cls]||0.15)*H;
-    ctx.fillStyle = cc.fg + '35';
-    ctx.fillRect(x,H-h,colW+0.5,h);
+  ctx.fillStyle='#343f44';ctx.fillRect(0,0,W,H);
+  if(timelineData.length<2) return;
+  const colW=W/TIMELINE_MAX;
+  for(let i=0;i<timelineData.length;i++){
+    const d=timelineData[i], cc=classConfig[d.cls]||classConfig.absent;
+    const x=(TIMELINE_MAX-timelineData.length+i)*colW;
+    const h=cc.tlY*H;
+    ctx.fillStyle=cc.fg+'30'; ctx.fillRect(x,H-h,colW+0.5,h);
   }
-  ctx.strokeStyle = '#d3c6aa55'; ctx.lineWidth = 1*dpr; ctx.beginPath();
-  for (let i=0;i<timelineData.length;i++) {
-    const d=timelineData[i];
+  ctx.strokeStyle='#d3c6aa55';ctx.lineWidth=1.5*dpr;ctx.beginPath();
+  for(let i=0;i<timelineData.length;i++){
+    const d=timelineData[i], cc=classConfig[d.cls]||classConfig.absent;
     const x=(TIMELINE_MAX-timelineData.length+i)*colW+colW/2;
-    const y=H-(classH[d.cls]||0.15)*H;
+    const y=H-cc.tlY*H;
     i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
   }
   ctx.stroke();
   const fs=Math.max(7,Math.min(11,H/18));
-  ctx.fillStyle='#7a847855'; ctx.font=`${fs*dpr}px 'JetBrains Mono'`; ctx.textAlign='right';
-  ['absent','still','moving','active'].forEach((l,i) => {
-    ctx.fillText(l, W-3*dpr, H-[0.15,0.4,0.65,0.9][i]*H+3*dpr);
-  });
+  ctx.fillStyle='#7a847855';ctx.font=`${fs*dpr}px 'JetBrains Mono'`;ctx.textAlign='right';
+  [{t:'empty',y:0.12},{t:'lying',y:0.35},{t:'sitting',y:0.55},{t:'walking',y:0.75},{t:'active',y:0.92}]
+    .forEach(l=>ctx.fillText(l.t,W-3*dpr,H-l.y*H+3*dpr));
 }
-function drawTimeline() { drawTimelineOn(tlCtx, tlCanvas); }
+function drawTimeline(){drawTimelineOn(tlCtx,tlCanvas);}
 
-function drawSpec(ctx, canvas, data) {
-  const W=canvas.width, H=canvas.height;
-  ctx.fillStyle = '#2d353b'; ctx.fillRect(0,0,W,H);
-  if (!data.length) return;
-  let gMax=1;
-  for (const col of data) for (const v of col) if (v>gMax) gMax=v;
-  const colW = W/SPEC_W;
-  for (let ci=0;ci<data.length;ci++) {
-    const col=data[ci], rows=col.length, rowH=H/rows;
+function drawSpec(ctx,canvas,data){
+  const W=canvas.width,H=canvas.height;
+  ctx.fillStyle='#2d353b';ctx.fillRect(0,0,W,H);
+  if(!data.length) return;
+  let gMax=1; for(const col of data) for(const v of col) if(v>gMax) gMax=v;
+  const colW=W/SPEC_W;
+  for(let ci=0;ci<data.length;ci++){
+    const col=data[ci],rows=col.length,rowH=H/rows;
     const x=Math.floor((SPEC_W-data.length+ci)*colW);
-    for (let ri=0;ri<rows;ri++) {
-      const [r,g,b]=spectroColor(col[ri]/gMax);
+    for(let ri=0;ri<rows;ri++){
+      const[r,g,b]=spectroColor(col[ri]/gMax);
       ctx.fillStyle=`rgb(${r},${g},${b})`;
       ctx.fillRect(x,Math.floor(ri*rowH),Math.ceil(colW)+1,Math.ceil(rowH)+1);
     }
   }
 }
 
-function updateUI() {
-  const cc = classColors[smoothedClass] || classColors.absent;
-  const dot=document.getElementById('classDot');
-  dot.className='class-dot '+smoothedClass; dot.innerHTML=cc.icon;
-  const cn=document.getElementById('className');
-  cn.className='class-name '+smoothedClass;
-  cn.textContent=classLabels[smoothedClass]||smoothedClass;
-  document.getElementById('classMeta').textContent=
-    `Confidence: ${(smoothedConf*100).toFixed(0)}%`+(lastClassification?` | Persons: ${lastClassification.presence?1:0}`:'');
-  document.getElementById('confFill').style.width=(smoothedConf*100)+'%';
-  document.getElementById('confFill').style.background=cc.bar;
-  if (lastVitals) {
-    document.getElementById('hrVal').textContent=lastVitals.heart_rate_bpm>0?lastVitals.heart_rate_bpm.toFixed(0):'—';
-    document.getElementById('brVal').textContent=lastVitals.breathing_rate_bpm>0?lastVitals.breathing_rate_bpm.toFixed(1):'—';
-    document.getElementById('hrConf').style.width=(lastVitals.heartbeat_confidence*100)+'%';
-    document.getElementById('brConf').style.width=(lastVitals.breathing_confidence*100)+'%';
+function updateUI(){
+  const cc=classConfig[smoothedClass]||classConfig.absent;
+  const ring=document.getElementById('statusRing');
+  ring.className='status-ring '+smoothedClass; ring.innerHTML=cc.icon;
+  const lbl=document.getElementById('statusLabel');
+  lbl.className='status-label '+smoothedClass; lbl.textContent=cc.label;
+  const pct=(smoothedConf*100).toFixed(0);
+  document.getElementById('statusSub').textContent=
+    lastEstPersons>0? lastEstPersons+' person detected' : 'No presence detected';
+  document.getElementById('confPct').textContent=pct+'%';
+  document.getElementById('confPct').style.color=cc.fg;
+  document.getElementById('confFill').style.width=pct+'%';
+  document.getElementById('confFill').style.background=cc.fg;
+  // Person pips
+  const dots=document.getElementById('personsDots').children;
+  for(let i=0;i<dots.length;i++){
+    if(i<lastEstPersons){dots[i].className='person-pip on';dots[i].style.background=cc.fg;dots[i].style.boxShadow=`0 0 6px ${cc.fg}44`;}
+    else{dots[i].className='person-pip';dots[i].style.background='';dots[i].style.boxShadow='';}
+  }
+  document.getElementById('personsText').textContent=
+    lastEstPersons===0?'No persons':lastEstPersons+(lastEstPersons===1?' person':' persons');
+  // Vitals
+  if(lastVitals){
+    const hr=lastVitals.heart_rate_bpm||lastVitals.heartbeat_bpm||0;
+    const br=lastVitals.breathing_rate_bpm||lastVitals.breathing_rpm||0;
+    document.getElementById('hrVal').textContent=hr>0?hr.toFixed(0):'—';
+    document.getElementById('brVal').textContent=br>0?br.toFixed(1):'—';
+    document.getElementById('hrConf').style.width=((lastVitals.heartbeat_confidence||0)*100)+'%';
+    document.getElementById('brConf').style.width=((lastVitals.breathing_confidence||0)*100)+'%';
     const hi=document.getElementById('heartIcon');
-    if (lastVitals.heartbeat_confidence>0.3 && lastVitals.heart_rate_bpm>0)
-      hi.style.animation=`heartPulse ${(60/lastVitals.heart_rate_bpm).toFixed(2)}s ease-in-out infinite`;
+    if((lastVitals.heartbeat_confidence||0)>0.3&&hr>0)
+      hi.style.animation=`heartPulse ${(60/hr).toFixed(2)}s ease-in-out infinite`;
     else hi.style.animation='none';
   }
+  // Nodes
   const maxM=Math.max(0.5,...nodeMotionSmooth);
-  for (let i=0;i<3;i++) {
+  for(let i=0;i<3;i++){
     document.getElementById('nb'+(i+1)).style.width=Math.min(100,(nodeMotionSmooth[i]/maxM)*100)+'%';
     document.getElementById('nv'+(i+1)).textContent=nodeMotion[i].toFixed(1);
   }
 }
 
-// ── Fullscreen ──
-let fsMode=null, fsSpecCanvases=[], fsSpecCtxs=[], fsTlCanvas=null, fsTlCtx=null;
-function openFullscreen(mode) {
+// Fullscreen
+let fsMode=null,fsSpecCanvases=[],fsSpecCtxs=[],fsTlCanvas=null,fsTlCtx=null;
+function openFullscreen(mode){
   fsMode=mode;
-  const overlay=document.getElementById('fsOverlay'), body=document.getElementById('fsBody');
+  const overlay=document.getElementById('fsOverlay'),body=document.getElementById('fsBody');
   overlay.classList.add('active');
   const dpr=devicePixelRatio||1;
-  if (mode==='timeline') {
+  if(mode==='timeline'){
     document.getElementById('fsTitle').textContent='Activity Timeline';
     body.innerHTML='<canvas id="fsTl" style="width:100%;height:100%"></canvas>';
     fsTlCanvas=document.getElementById('fsTl');
     const r=body.getBoundingClientRect();
-    fsTlCanvas.width=Math.round(r.width*dpr); fsTlCanvas.height=Math.round(r.height*dpr);
+    fsTlCanvas.width=Math.round(r.width*dpr);fsTlCanvas.height=Math.round(r.height*dpr);
     fsTlCtx=fsTlCanvas.getContext('2d');
-  } else {
+  }else{
     document.getElementById('fsTitle').textContent='CSI Spectrograms';
     body.innerHTML='<div class="specs">'+
       '<div class="spec-panel"><span class="spec-label">Node 1</span><canvas id="fsc1"></canvas></div>'+
       '<div class="spec-panel"><span class="spec-label">Node 2</span><canvas id="fsc2"></canvas></div>'+
       '<div class="spec-panel"><span class="spec-label">Node 3</span><canvas id="fsc3"></canvas></div></div>';
     fsSpecCanvases=['fsc1','fsc2','fsc3'].map(id=>document.getElementById(id));
-    // Delay canvas sizing to allow layout to compute
     requestAnimationFrame(()=>{
       fsSpecCanvases.forEach(c=>{const r=c.parentElement.getBoundingClientRect();c.width=Math.round(r.width*dpr);c.height=Math.round(r.height*dpr);});
       fsSpecCtxs=fsSpecCanvases.map(c=>c.getContext('2d'));
@@ -641,25 +625,22 @@ function openFullscreen(mode) {
 function closeFullscreen(){fsMode=null;document.getElementById('fsOverlay').classList.remove('active');fsSpecCanvases=[];fsSpecCtxs=[];fsTlCanvas=null;fsTlCtx=null;}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeFullscreen();});
 
-// ── Render ──
 let lastRender=0;
-function render(ts) {
-  if (ts-lastRender>50) {
+function render(ts){
+  if(ts-lastRender>50){
     lastRender=ts;
-    drawRoom(); drawTimeline();
-    for (let i=0;i<3;i++) drawSpec(specCtxs[i],specCanvases[i],specData[i]);
+    drawRoom();drawTimeline();
+    for(let i=0;i<3;i++) drawSpec(specCtxs[i],specCanvases[i],specData[i]);
     updateUI();
-    if (fsMode==='timeline'&&fsTlCtx) drawTimelineOn(fsTlCtx,fsTlCanvas);
-    if (fsMode==='specs'&&fsSpecCtxs.length===3)
-      for (let i=0;i<3;i++) drawSpec(fsSpecCtxs[i],fsSpecCanvases[i],specData[i]);
+    if(fsMode==='timeline'&&fsTlCtx) drawTimelineOn(fsTlCtx,fsTlCanvas);
+    if(fsMode==='specs'&&fsSpecCtxs.length===3) for(let i=0;i<3;i++) drawSpec(fsSpecCtxs[i],fsSpecCanvases[i],specData[i]);
   }
   requestAnimationFrame(render);
 }
 requestAnimationFrame(render);
 
-// ── WebSocket ──
-function connect() {
-  const ws = new WebSocket(WS_URL);
+function connect(){
+  const ws=new WebSocket(WS_URL);
   ws.onopen=()=>{document.getElementById('wsDot').className='ws-dot live';document.getElementById('wsLabel').textContent='Live';document.getElementById('wsLabel').style.color='#a7c080';};
   ws.onclose=()=>{document.getElementById('wsDot').className='ws-dot off';document.getElementById('wsLabel').textContent='Offline';document.getElementById('wsLabel').style.color='#e67e80';setTimeout(connect,2000);};
   ws.onerror=()=>ws.close();
@@ -667,7 +648,7 @@ function connect() {
   ws.onmessage=(evt)=>{
     totalMsgs++;
     const now=Date.now();
-    if(now-lastP<20)return; lastP=now;
+    if(now-lastP<20)return;lastP=now;
     try{processMessage(JSON.parse(evt.data));frameCount++;
     if(now-lastFpsTime>1000){document.getElementById('fps').textContent=frameCount+' fps';frameCount=0;lastFpsTime=now;}}catch(e){}
   };
