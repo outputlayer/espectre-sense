@@ -1,7 +1,12 @@
-//! ESPectre Sensing Server
+//! WiFi-DensePose Sensing Server
 //!
-//! Receives ESP32 CSI frames via UDP, processes signals with the ESPectre algorithm,
-//! and broadcasts presence/movement/vital-signs updates via WebSocket + REST API.
+//! Lightweight Axum server that:
+//! - Receives ESP32 CSI frames via UDP (port 5005)
+//! - Processes signals using RuVector-powered wifi-densepose-signal crate
+//! - Broadcasts sensing updates via WebSocket (ws://localhost:8765/ws/sensing)
+//! - Serves the static UI files (port 8080)
+//!
+//! Replaces both ws_server.py and the Python HTTP server.
 
 mod adaptive_classifier;
 mod rvf_container;
@@ -11,7 +16,7 @@ mod espectre;
 mod trained_mlp;
 
 // Training pipeline modules (exposed via lib.rs)
-use espectre_server::{graph_transformer, trainer, dataset, embedding};
+use wifi_densepose_sensing_server::{graph_transformer, trainer, dataset, embedding};
 
 use std::collections::VecDeque;
 use std::net::SocketAddr;

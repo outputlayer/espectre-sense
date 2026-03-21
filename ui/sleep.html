@@ -85,7 +85,17 @@ body { background: var(--bg-dim); color: var(--fg); font-family: 'Inter', sans-s
   font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px;
   color: var(--grey0); margin-bottom: 10px; font-weight: 600;
 }
-canvas { width: 100%; border-radius: 8px; }
+canvas { width: 100%; border-radius: 8px; cursor: crosshair; }
+
+/* Zoom controls */
+.chart-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.zoom-hint { font-size: 10px; color: var(--grey0); font-style: italic; }
+.zoom-reset {
+  font-size: 10px; color: var(--teal); background: none; border: 1px solid var(--teal);
+  padding: 2px 8px; border-radius: 4px; cursor: pointer; display: none; transition: all 0.2s;
+}
+.zoom-reset:hover { background: rgba(127,187,179,0.1); }
+.chart-card canvas { position: relative; }
 
 /* Live indicator */
 .live-bar {
@@ -173,19 +183,31 @@ canvas { width: 100%; border-radius: 8px; }
 
   <!-- Heart Rate Chart -->
   <div class="chart-card">
-    <div class="chart-title">Heart Rate (BPM)</div>
+    <div class="chart-header">
+      <span class="chart-title" style="margin-bottom:0">Heart Rate (BPM)</span>
+      <span class="zoom-hint">Drag to zoom · Scroll to scale · Double-click to reset</span>
+      <button class="zoom-reset" id="hrChart_reset" onclick="resetZoom('hrChart')">Reset Zoom</button>
+    </div>
     <canvas id="hrChart" height="160"></canvas>
   </div>
 
   <!-- Breathing Rate Chart -->
   <div class="chart-card">
-    <div class="chart-title">Breathing Rate (BPM)</div>
+    <div class="chart-header">
+      <span class="chart-title" style="margin-bottom:0">Breathing Rate (BPM)</span>
+      <span class="zoom-hint">Drag to zoom · Scroll to scale · Double-click to reset</span>
+      <button class="zoom-reset" id="brChart_reset" onclick="resetZoom('brChart')">Reset Zoom</button>
+    </div>
     <canvas id="brChart" height="160"></canvas>
   </div>
 
   <!-- Motion Chart -->
   <div class="chart-card">
-    <div class="chart-title">Motion Level (ESPectre Score 0-10)</div>
+    <div class="chart-header">
+      <span class="chart-title" style="margin-bottom:0">Motion Level (ESPectre Score 0-10)</span>
+      <span class="zoom-hint">Drag to zoom · Scroll to scale · Double-click to reset</span>
+      <button class="zoom-reset" id="motionChart_reset" onclick="resetZoom('motionChart')">Reset Zoom</button>
+    </div>
     <canvas id="motionChart" height="140"></canvas>
   </div>
 
@@ -213,6 +235,123 @@ let historyData = [];
 let ws = null;
 let liveData = { hr: null, br: null, motion: 0, class: 'absent', hrConf: 0, brConf: 0 };
 let dataPoints = 0;
+
+// ── Zoom State ──
+const zoomState = {};
+function getZoom(id) {
+  if (!zoomState[id]) zoomState[id] = { start: 0, end: 1 }; // 0..1 normalized range
+  return zoomState[id];
+}
+function resetZoom(id) {
+  zoomState[id] = { start: 0, end: 1 };
+  document.getElementById(id + '_reset').style.display = 'none';
+  rerender();
+}
+function resetAllZooms() {
+  for (const id of ['hrChart', 'brChart', 'motionChart']) {
+    zoomState[id] = { start: 0, end: 1 };
+    document.getElementById(id + '_reset').style.display = 'none';
+  }
+}
+function rerender() {
+  renderChart('hrChart', historyData, 'hr', 'hr_conf', EF.red, 40, 120, 'BPM');
+  renderChart('brChart', historyData, 'br', 'br_conf', EF.teal, 5, 30, 'BPM');
+  renderMotionChart();
+}
+
+// ── Zoom Interaction ──
+let dragState = null; // { canvasId, startX }
+const CHART_PAD_L = 45, CHART_PAD_R = 10;
+
+function canvasXToNorm(canvas, clientX) {
+  const rect = canvas.getBoundingClientRect();
+  const x = clientX - rect.left;
+  const chartW = rect.width - CHART_PAD_L - CHART_PAD_R;
+  return Math.max(0, Math.min(1, (x - CHART_PAD_L) / chartW));
+}
+
+function setupZoomHandlers(canvasId) {
+  const canvas = document.getElementById(canvasId);
+  let selOverlay = null;
+
+  canvas.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    dragState = { canvasId, startX: e.clientX, startNorm: canvasXToNorm(canvas, e.clientX) };
+    // Create selection overlay
+    selOverlay = document.createElement('div');
+    selOverlay.style.cssText = `position:absolute;top:0;bottom:0;background:rgba(127,187,179,0.15);border-left:1px solid ${EF.teal};border-right:1px solid ${EF.teal};pointer-events:none;z-index:10;`;
+    canvas.parentElement.style.position = 'relative';
+    canvas.parentElement.appendChild(selOverlay);
+  });
+
+  canvas.addEventListener('mousemove', (e) => {
+    if (!dragState || dragState.canvasId !== canvasId || !selOverlay) return;
+    const rect = canvas.getBoundingClientRect();
+    const startX = Math.max(CHART_PAD_L, dragState.startX - rect.left);
+    const curX = Math.max(CHART_PAD_L, Math.min(rect.width - CHART_PAD_R, e.clientX - rect.left));
+    const left = Math.min(startX, curX);
+    const width = Math.abs(curX - startX);
+    selOverlay.style.left = left + 'px';
+    selOverlay.style.width = width + 'px';
+  });
+
+  canvas.addEventListener('mouseup', (e) => {
+    if (!dragState || dragState.canvasId !== canvasId) return;
+    if (selOverlay) { selOverlay.remove(); selOverlay = null; }
+    const endNorm = canvasXToNorm(canvas, e.clientX);
+    const startNorm = dragState.startNorm;
+    dragState = null;
+
+    const minN = Math.min(startNorm, endNorm);
+    const maxN = Math.max(startNorm, endNorm);
+    if (maxN - minN < 0.02) return; // too small, ignore
+
+    // Map selection back to current zoom range
+    const z = getZoom(canvasId);
+    const range = z.end - z.start;
+    z.start = z.start + minN * range;
+    z.end = z.start + (maxN - minN) * range;
+    // Clamp
+    z.start = Math.max(0, z.start);
+    z.end = Math.min(1, z.end);
+
+    document.getElementById(canvasId + '_reset').style.display = 'inline-block';
+    rerender();
+  });
+
+  canvas.addEventListener('mouseleave', () => {
+    if (selOverlay) { selOverlay.remove(); selOverlay = null; }
+    dragState = null;
+  });
+
+  // Scroll wheel zoom
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const z = getZoom(canvasId);
+    const norm = canvasXToNorm(canvas, e.clientX);
+    const range = z.end - z.start;
+    const pivot = z.start + norm * range;
+
+    const factor = e.deltaY > 0 ? 1.2 : 0.8; // scroll down = zoom out
+    let newRange = range * factor;
+    newRange = Math.max(0.01, Math.min(1, newRange));
+
+    z.start = pivot - norm * newRange;
+    z.end = pivot + (1 - norm) * newRange;
+    // Clamp
+    if (z.start < 0) { z.end -= z.start; z.start = 0; }
+    if (z.end > 1) { z.start -= (z.end - 1); z.end = 1; }
+    z.start = Math.max(0, z.start);
+    z.end = Math.min(1, z.end);
+
+    const isZoomed = z.start > 0.001 || z.end < 0.999;
+    document.getElementById(canvasId + '_reset').style.display = isZoomed ? 'inline-block' : 'none';
+    rerender();
+  }, { passive: false });
+
+  // Double-click to reset
+  canvas.addEventListener('dblclick', () => resetZoom(canvasId));
+}
 
 // ── WebSocket ──
 function connectWS() {
@@ -332,16 +471,18 @@ function updateDateLabel() {
 
 document.getElementById('prevDay').onclick = () => {
   currentDate.setDate(currentDate.getDate() - 1);
+  resetAllZooms();
   loadData();
 };
 document.getElementById('nextDay').onclick = () => {
   const now = new Date();
   const next = new Date(currentDate);
   next.setDate(next.getDate() + 1);
-  if (next <= now) { currentDate = next; loadData(); }
+  if (next <= now) { currentDate = next; resetAllZooms(); loadData(); }
 };
 document.getElementById('todayBtn').onclick = () => {
   currentDate = new Date();
+  resetAllZooms();
   loadData();
 };
 
@@ -485,6 +626,13 @@ function renderChart(canvasId, data, field, confField, color, yMin, yMax, unit) 
   ctx.clearRect(0, 0, W, H);
   if (data.length < 2) return;
 
+  // Apply zoom: slice visible data
+  const z = getZoom(canvasId);
+  const iStart = Math.floor(z.start * (data.length - 1));
+  const iEnd = Math.ceil(z.end * (data.length - 1));
+  const vd = data.slice(iStart, iEnd + 1); // visible data
+  if (vd.length < 2) return;
+
   const padL = 45, padR = 10, padT = 10, padB = 28;
   const chartW = W - padL - padR, chartH = H - padT - padB;
 
@@ -502,32 +650,32 @@ function renderChart(canvasId, data, field, confField, color, yMin, yMax, unit) 
 
   // Time labels
   ctx.textAlign = 'center'; ctx.fillStyle = EF.grey0; ctx.font = '10px JetBrains Mono';
-  const timeSteps = Math.min(8, data.length);
+  const timeSteps = Math.min(8, vd.length);
   for (let i = 0; i <= timeSteps; i++) {
-    const idx = Math.floor(i / timeSteps * (data.length - 1));
-    const x = padL + (idx / (data.length - 1)) * chartW;
-    const ts = new Date(data[idx].ts);
+    const idx = Math.floor(i / timeSteps * (vd.length - 1));
+    const x = padL + (idx / (vd.length - 1)) * chartW;
+    const ts = new Date(vd[idx].ts);
     ctx.fillText(ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), x, H - 4);
   }
 
   // Confidence fill area
   ctx.beginPath();
   let hasConf = false;
-  for (let i = 0; i < data.length; i++) {
-    const val = data[i][field];
-    const conf = data[i][confField] || 0;
+  for (let i = 0; i < vd.length; i++) {
+    const val = vd[i][field];
+    const conf = vd[i][confField] || 0;
     if (val === null || val === undefined) continue;
-    const x = padL + (i / (data.length - 1)) * chartW;
+    const x = padL + (i / (vd.length - 1)) * chartW;
     const y = padT + ((yMax - val) / (yMax - yMin)) * chartH;
     const spread = (1 - conf) * chartH * 0.15;
     if (!hasConf) { ctx.moveTo(x, y - spread); hasConf = true; }
     else ctx.lineTo(x, y - spread);
   }
-  for (let i = data.length - 1; i >= 0; i--) {
-    const val = data[i][field];
-    const conf = data[i][confField] || 0;
+  for (let i = vd.length - 1; i >= 0; i--) {
+    const val = vd[i][field];
+    const conf = vd[i][confField] || 0;
     if (val === null || val === undefined) continue;
-    const x = padL + (i / (data.length - 1)) * chartW;
+    const x = padL + (i / (vd.length - 1)) * chartW;
     const y = padT + ((yMax - val) / (yMax - yMin)) * chartH;
     const spread = (1 - conf) * chartH * 0.15;
     ctx.lineTo(x, y + spread);
@@ -541,10 +689,10 @@ function renderChart(canvasId, data, field, confField, color, yMin, yMax, unit) 
   ctx.strokeStyle = color;
   ctx.lineWidth = 1.5;
   let started = false;
-  for (let i = 0; i < data.length; i++) {
-    const val = data[i][field];
+  for (let i = 0; i < vd.length; i++) {
+    const val = vd[i][field];
     if (val === null || val === undefined) continue;
-    const x = padL + (i / (data.length - 1)) * chartW;
+    const x = padL + (i / (vd.length - 1)) * chartW;
     const y = padT + (Math.max(0, Math.min(1, (yMax - val) / (yMax - yMin)))) * chartH;
     if (!started) { ctx.moveTo(x, y); started = true; }
     else ctx.lineTo(x, y);
@@ -552,11 +700,11 @@ function renderChart(canvasId, data, field, confField, color, yMin, yMax, unit) 
   ctx.stroke();
 
   // Confidence dots
-  for (let i = 0; i < data.length; i += Math.max(1, Math.floor(data.length / 60))) {
-    const val = data[i][field];
-    const conf = data[i][confField] || 0;
+  for (let i = 0; i < vd.length; i += Math.max(1, Math.floor(vd.length / 60))) {
+    const val = vd[i][field];
+    const conf = vd[i][confField] || 0;
     if (val === null || val === undefined || conf < 0.3) continue;
-    const x = padL + (i / (data.length - 1)) * chartW;
+    const x = padL + (i / (vd.length - 1)) * chartW;
     const y = padT + (Math.max(0, Math.min(1, (yMax - val) / (yMax - yMin)))) * chartH;
     ctx.beginPath();
     ctx.arc(x, y, 2, 0, Math.PI * 2);
@@ -581,6 +729,13 @@ function renderMotionChart() {
   const data = historyData;
   if (data.length < 2) return;
 
+  // Apply zoom
+  const z = getZoom('motionChart');
+  const iStart = Math.floor(z.start * (data.length - 1));
+  const iEnd = Math.ceil(z.end * (data.length - 1));
+  const vd = data.slice(iStart, iEnd + 1);
+  if (vd.length < 2) return;
+
   const padL = 45, padR = 10, padT = 10, padB = 28;
   const chartW = W - padL - padR, chartH = H - padT - padB;
   const yMax = 10;
@@ -596,24 +751,23 @@ function renderMotionChart() {
 
   // Time labels
   ctx.textAlign = 'center'; ctx.fillStyle = EF.grey0;
-  const timeSteps = Math.min(8, data.length);
+  const timeSteps = Math.min(8, vd.length);
   for (let i = 0; i <= timeSteps; i++) {
-    const idx = Math.floor(i / timeSteps * (data.length - 1));
-    const x = padL + (idx / (data.length - 1)) * chartW;
-    const ts = new Date(data[idx].ts);
+    const idx = Math.floor(i / timeSteps * (vd.length - 1));
+    const x = padL + (idx / (vd.length - 1)) * chartW;
+    const ts = new Date(vd[idx].ts);
     ctx.fillText(ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), x, H - 4);
   }
 
   // Bar chart
-  const barW = Math.max(1, chartW / data.length);
-  for (let i = 0; i < data.length; i++) {
-    const motion = data[i].motion || 0;
-    const x = padL + (i / data.length) * chartW;
+  const barW = Math.max(1, chartW / vd.length);
+  for (let i = 0; i < vd.length; i++) {
+    const motion = vd[i].motion || 0;
+    const x = padL + (i / vd.length) * chartW;
     const barH = (motion / yMax) * chartH;
     const y = padT + chartH - barH;
 
-    // Color by classification
-    const c = data[i].class;
+    const c = vd[i].class;
     ctx.fillStyle = CLASS_COLORS[c] || EF.bg3;
     ctx.globalAlpha = 0.7;
     ctx.fillRect(x, y, barW + 0.5, barH);
@@ -624,9 +778,9 @@ function renderMotionChart() {
   ctx.beginPath();
   ctx.strokeStyle = EF.yellow;
   ctx.lineWidth = 1;
-  for (let i = 0; i < data.length; i++) {
-    const motion = Math.min(data[i].motion || 0, yMax);
-    const x = padL + (i / (data.length - 1)) * chartW;
+  for (let i = 0; i < vd.length; i++) {
+    const motion = Math.min(vd[i].motion || 0, yMax);
+    const x = padL + (i / (vd.length - 1)) * chartW;
     const y = padT + ((yMax - motion) / yMax) * chartH;
     if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   }
@@ -637,14 +791,13 @@ function renderMotionChart() {
 let resizeTimer;
 window.addEventListener('resize', () => {
   clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(() => {
-    renderChart('hrChart', historyData, 'hr', 'hr_conf', EF.red, 40, 120, 'BPM');
-    renderChart('brChart', historyData, 'br', 'br_conf', EF.teal, 5, 30, 'BPM');
-    renderMotionChart();
-  }, 200);
+  resizeTimer = setTimeout(rerender, 200);
 });
 
 // ── Init ──
+setupZoomHandlers('hrChart');
+setupZoomHandlers('brChart');
+setupZoomHandlers('motionChart');
 connectWS();
 loadData();
 // Auto-refresh every 60 seconds
