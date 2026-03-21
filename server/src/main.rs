@@ -3042,8 +3042,8 @@ async fn udp_receiver_task(state: SharedState, udp_port: u16) {
                             // --- Vital signs as static presence indicator ---
                             let hr_conf = s.latest_vitals.heartbeat_confidence;
                             let br_conf = s.latest_vitals.breathing_confidence;
-                            let vitals_present = (hr_conf > 0.5 && br_conf > 0.4)
-                                || hr_conf > 0.6 || br_conf > 0.55;
+                            let vitals_present = (hr_conf > 0.7 && br_conf > 0.5)
+                                || hr_conf > 0.8 || br_conf > 0.7;
 
                             // --- Determine raw presence from ESPectre + vitals ---
                             let esp_present = median_score > 0.5;
