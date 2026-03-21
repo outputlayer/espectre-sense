@@ -39,6 +39,8 @@ clap = { workspace = true }
 
 # WiFi scanning (Windows multi-BSSID pipeline)
 espectre-wifiscan = { path = "../wifiscan" }
+# Deep learning inference (ONNX)
+anyhow = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3.10"

@@ -14,6 +14,7 @@ mod rvf_pipeline;
 mod vital_signs;
 mod espectre;
 mod trained_mlp;
+mod dl_classifier;
 
 // Training pipeline modules (exposed via lib.rs)
 use espectre_server::{graph_transformer, trainer, dataset, embedding};
@@ -397,6 +398,8 @@ struct AppStateInner {
     /// Trained MLP: previous amplitudes for motion features.
     mlp_node_state: std::collections::HashMap<u8, MlpNodeState>,
     mlp_vote_window: Vec<usize>,
+    /// Deep learning classifier (ONNX CNN-LSTM).
+    dl_classifier: Option<dl_classifier::DlClassifier>,
 }
 
 /// Number of frames retained in `frame_history` for temporal analysis.
@@ -2893,212 +2896,34 @@ async fn udp_receiver_task(state: SharedState, udp_port: u16) {
                     smooth_and_classify(&mut s, &mut classification, raw_motion);
     adaptive_override(&s, &features, &mut classification);
 
-                    // ── ESPectre motion detection (ESP32 UDP pipeline) ──
-                    {
-                        let amps_f32: Vec<f32> = frame.amplitudes.iter().map(|&x| x as f32).collect();
-                        let (score, _is_motion) = s.espectre_detector.process_node(frame.node_id, &amps_f32);
-                        s.espectre_scores.insert(frame.node_id, score);
-                        // Use mean score across nodes (robust to one noisy node) + EMA smoothing
-                        let n_nodes = s.espectre_scores.len().max(1) as f32;
-                        let mean_score = s.espectre_scores.values().sum::<f32>() / n_nodes;
-                        let max_score = s.espectre_scores.values().cloned().fold(0.0f32, f32::max);
-                        let nodes_above_2 = s.espectre_scores.values().filter(|&&sc| sc > 2.0).count();
-                        // Smooth with faster EMA (0.6 decay = quicker cooldown)
-                        s.espectre_max_score = s.espectre_max_score * 0.6 + mean_score * 0.4;
-                        let median_score = s.espectre_max_score; // smoothed mean as decision score
-                        s.espectre_motion = median_score > 1.5;
-                        // Override classification if ESPectre has signal (after calibration)
-                        // ESPectre always overrides after calibration (score 0 = absent).
-                        {
-                            // Check vital signs for stationary presence detection.
-                            let hr_conf = s.latest_vitals.heartbeat_confidence;
-                            let br_conf = s.latest_vitals.breathing_confidence;
-                            // Average ESPectre across all nodes (more stable than max).
-                            let _avg_score = if s.espectre_scores.is_empty() { 0.0 } else {
-                                s.espectre_scores.values().sum::<f32>() / s.espectre_scores.len() as f32
+                    let current_tick = s.tick;
+                    // ── Deep Learning classification (CNN-LSTM via ONNX) ──
+                    if let Some(ref mut dl) = s.dl_classifier {
+                        if let Some((label, confidence)) = dl.feed_frame(frame.node_id, &frame.amplitudes) {
+                            // Map DL classes to server classification format
+                            let (motion_level, presence) = match label {
+                                "empty" => ("absent", false),
+                                "lying" => ("lying_still", true),
+                                "walking" => ("present_moving", true),
+                                "sitting" => ("present_still", true),
+                                _ => ("absent", false),
                             };
-                            let vitals_present = (hr_conf > 0.55 && br_conf > 0.45) || hr_conf > 0.65 || br_conf > 0.60;
-                            // Multi-node consensus: if 2+ nodes see score > 0.5, likely real.
-                            let nodes_active = s.espectre_scores.values().filter(|&&s| s > 0.5).count();
-
-                            let esp_label = if median_score > 7.0 { "active" }
-                                else if median_score > 5.0 { "present_moving" }
-                                else if median_score > 3.0 && nodes_above_2 >= 2 { "present_still" }
-                                else if median_score > 2.0 && nodes_above_2 >= 2 { "present_still" }
-                                else { "absent" };
-                            let has_presence = median_score > 3.0 && nodes_above_2 >= 1;
-                            classification.motion_level = esp_label.to_string();
-                            classification.presence = has_presence;
-                            let vitals_conf = (hr_conf * 0.6 + br_conf * 0.4) as f32;
-                            let base_conf = median_score / 10.0;
-                            classification.confidence = if vitals_present && base_conf < vitals_conf {
-                                vitals_conf.clamp(0.0, 1.0) as f64
-                            } else {
-                                base_conf.clamp(0.0, 1.0) as f64
-                            };
-                        }
-
-                        // ── Trained MLP classifier (74% accuracy, 5-class, no RSSI) ──
-                        {
-                            let node_id = frame.node_id;
-                            let amps: Vec<f32> = frame.amplitudes.iter().map(|&x| x as f32).collect();
-                            let mut a = [0.0f32; 56];
-                            for i in 0..56.min(amps.len()) { a[i] = amps[i]; }
-
-                            let ns = s.mlp_node_state.entry(node_id).or_insert_with(MlpNodeState::new);
-
-                            let amp_mean: f32 = a.iter().sum::<f32>() / 56.0;
-                            let amp_std: f32 = (a.iter().map(|x| (x - amp_mean).powi(2)).sum::<f32>() / 56.0).sqrt();
-                            let amp_range: f32 = a.iter().cloned().fold(f32::NEG_INFINITY, f32::max)
-                                - a.iter().cloned().fold(f32::INFINITY, f32::min);
-                            let low_m: f32 = a[..18].iter().sum::<f32>() / 18.0;
-                            let mid_m: f32 = a[18..37].iter().sum::<f32>() / 19.0;
-                            let high_m: f32 = a[37..].iter().sum::<f32>() / 19.0;
-                            let low_s: f32 = (a[..18].iter().map(|x| (x - low_m).powi(2)).sum::<f32>() / 18.0).sqrt();
-                            let mid_s: f32 = (a[18..37].iter().map(|x| (x - mid_m).powi(2)).sum::<f32>() / 19.0).sqrt();
-                            let high_s: f32 = (a[37..].iter().map(|x| (x - high_m).powi(2)).sum::<f32>() / 19.0).sqrt();
-
-                            let sc_idx = [12,14,16,18,20,24,28,36,40,44,48,52];
-                            let sc_mean: f32 = sc_idx.iter().map(|&i| a[i]).sum::<f32>() / 12.0;
-                            let turbulence: f32 = (sc_idx.iter().map(|&i| (a[i] - sc_mean).powi(2)).sum::<f32>() / 12.0).sqrt();
-
-                            // Per-node diff (same node only)
-                            let diff_sq: f32 = if let Some(ref prev) = ns.prev_amps {
-                                let n = prev.len().min(amps.len());
-                                if n > 0 { (0..n).map(|i| (amps[i] - prev[i]).powi(2)).sum::<f32>() / n as f32 } else { 0.0 }
-                            } else { 0.0 };
-                            let abs_diff: f32 = if let Some(ref prev) = ns.prev_amps {
-                                let n = prev.len().min(amps.len());
-                                if n > 0 { (0..n).map(|i| (amps[i] - prev[i]).abs()).sum::<f32>() / n as f32 } else { 0.0 }
-                            } else { 0.0 };
-                            let accel: f32 = if let (Some(ref prev), Some(ref pprev)) = (&ns.prev_amps, &ns.prev_prev_amps) {
-                                let n = prev.len().min(pprev.len()).min(amps.len());
-                                if n > 0 { (0..n).map(|i| ((amps[i]-prev[i]) - (prev[i]-pprev[i])).powi(2)).sum::<f32>() / n as f32 } else { 0.0 }
-                            } else { 0.0 };
-
-                            ns.prev_prev_amps = ns.prev_amps.take();
-                            ns.prev_amps = Some(amps.clone());
-                            ns.motion_ema = ns.motion_ema * 0.85 + diff_sq * 0.15;
-                            ns.turb_ema = ns.turb_ema * 0.9 + turbulence * 0.1;
-                            for i in 0..56 { ns.amp_ema[i] = ns.amp_ema[i] * 0.95 + a[i] * 0.05; }
-                            let ema_dev: f32 = (0..56).map(|i| (a[i] - ns.amp_ema[i]).powi(2)).sum::<f32>() / 56.0;
-
-                            ns.motion_window.push(diff_sq);
-                            ns.turb_window.push(turbulence);
-                            if ns.motion_window.len() > 20 { ns.motion_window.remove(0); }
-                            if ns.turb_window.len() > 20 { ns.turb_window.remove(0); }
-
-                            let (motion_mean_w, motion_std_w, motion_max_w, turb_mean_w, turb_std_w) =
-                                if ns.motion_window.len() >= 5 {
-                                    let mw = &ns.motion_window;
-                                    let tw = &ns.turb_window;
-                                    let mm: f32 = mw.iter().sum::<f32>() / mw.len() as f32;
-                                    let ms: f32 = (mw.iter().map(|x| (x-mm).powi(2)).sum::<f32>() / mw.len() as f32).sqrt();
-                                    let mx: f32 = mw.iter().cloned().fold(0.0f32, f32::max);
-                                    let tm: f32 = tw.iter().sum::<f32>() / tw.len() as f32;
-                                    let ts: f32 = (tw.iter().map(|x| (x-tm).powi(2)).sum::<f32>() / tw.len() as f32).sqrt();
-                                    (mm, ms, mx, tm, ts)
-                                } else { (0.0, 0.0, 0.0, 0.0, 0.0) };
-
-                            let variance = features.variance as f32;
-                            let mbp = features.motion_band_power as f32;
-                            let bbp = features.breathing_band_power as f32;
-                            let sp = features.spectral_power as f32;
-                            let df = features.dominant_freq_hz as f32;
-                            let cp = features.change_points as f32;
-
-                            // Clip volatile features to training range (prevents outlier spikes)
-                            let motion_max_w_c = motion_max_w.min(100.0);
-                            let motion_std_w_c = motion_std_w.min(30.0);
-                            let motion_ema_c = ns.motion_ema.min(25.0);
-                            let motion_mean_w_c = motion_mean_w.min(20.0);
-                            let accel_c = accel.min(120.0);
-
-                            let fv: [f32; 27] = [
-                                amp_mean, amp_std, amp_range, low_m, mid_m, high_m,
-                                low_s, mid_s, high_s,
-                                turbulence, ns.turb_ema,
-                                diff_sq, abs_diff, motion_ema_c, accel_c,
-                                ema_dev,
-                                motion_mean_w_c, motion_std_w_c, motion_max_w_c,
-                                turb_mean_w, turb_std_w,
-                                variance, mbp, bbp, sp, df, cp,
-                            ];
-
-                            if s.tick % 200 == 0 {
-                                eprintln!("FV node={}: [{:.1},{:.1},{:.1},{:.1},{:.1},{:.1},{:.2},{:.2},{:.2},{:.2},{:.2},{:.2},{:.2},{:.2},{:.2},{:.2},{:.2},{:.2},{:.2},{:.2},{:.2},{:.1},{:.1},{:.1},{:.1},{:.2},{:.1}]",
-                                    node_id, fv[0],fv[1],fv[2],fv[3],fv[4],fv[5],fv[6],fv[7],fv[8],fv[9],fv[10],fv[11],fv[12],fv[13],fv[14],fv[15],fv[16],fv[17],fv[18],fv[19],fv[20],fv[21],fv[22],fv[23],fv[24],fv[25],fv[26]);
+                            classification.motion_level = motion_level.to_string();
+                            classification.presence = presence;
+                            classification.confidence = confidence as f64;
+                            if current_tick % 200 == 0 {
+                                eprintln!("DL: {} ({:.1}%) | ready={}", label, confidence * 100.0, dl.is_ready());
                             }
-                            let (cls_idx, conf, cls_name) = trained_mlp::classify(&fv);
-
-                            // Fusion: ESPectre is primary (reliable presence/absence),
-                            // MLP refines the class only when ESPectre confirms presence.
-                            s.mlp_vote_window.push(cls_idx);
-                            if s.mlp_vote_window.len() > 30 { s.mlp_vote_window.remove(0); }
-
-                            let mut counts = [0usize; 5];
-                            for &v in &s.mlp_vote_window { if v < 5 { counts[v] += 1; } }
-                            let voted = counts.iter().enumerate().max_by_key(|&(_, c)| c).unwrap().0;
-                            let vote_conf = counts[voted] as f32 / s.mlp_vote_window.len() as f32;
-
-                            // --- Vital signs as static presence indicator ---
-                            let hr_conf = s.latest_vitals.heartbeat_confidence;
-                            let br_conf = s.latest_vitals.breathing_confidence;
-                            let vitals_present = (hr_conf > 0.7 && br_conf > 0.5)
-                                || hr_conf > 0.8 || br_conf > 0.7;
-
-                            // --- Determine raw presence from ESPectre + vitals ---
-                            let esp_present = median_score > 0.5;
-                            let strong_present = median_score > 1.2;
-                            let raw_present = esp_present || vitals_present;
-
-                            // --- Hysteresis: hold presence for 300 ticks (30s at 100ms) ---
-                            if raw_present {
-                                s.presence_hold_ticks = 300; // reset hold timer
-                            } else if s.presence_hold_ticks > 0 {
-                                s.presence_hold_ticks -= 1;
-                            }
-                            let held_present = s.presence_hold_ticks > 0;
-
-                            // --- Final classification ---
-                            if held_present {
-                                // Someone is (or was recently) present
-                                if strong_present {
-                                    // Clear motion → MLP picks the class
-                                    let voted_name = match voted {
-                                        1 => "present_still", 2 => "present_moving",
-                                        3 => "active", 4 => "lying_still", _ => "present_still"
-                                    };
-                                    classification.motion_level = voted_name.to_string();
-                                    classification.confidence = (median_score / 10.0).clamp(0.3, 1.0) as f64;
-                                } else if vitals_present && !esp_present {
-                                    // Vitals detect breathing but no motion → still/lying
-                                    classification.motion_level = if br_conf > 0.5 {
-                                        "lying_still".to_string()
-                                    } else {
-                                        "present_still".to_string()
-                                    };
-                                    classification.confidence = ((hr_conf * 0.6 + br_conf * 0.4) as f32).clamp(0.3, 0.8) as f64;
-                                } else {
-                                    // Ambiguous or hysteresis hold → present_still
-                                    classification.motion_level = "present_still".to_string();
-                                    classification.confidence = 0.4_f64;
-                                }
-                                classification.presence = true;
-                            } else {
-                                // Confirmed absent
-                                classification.motion_level = "absent".to_string();
-                                classification.presence = false;
-                                classification.confidence = (1.0 - median_score).clamp(0.5, 1.0) as f64;
-                            }
-                            if s.tick % 500 == 0 {
-                                eprintln!("FUSED: esp={:.2} vit=hr{:.2}/br{:.2} hold={} → {} | MLP: {} ({:.2})",
-                                    median_score, hr_conf, br_conf, s.presence_hold_ticks,
-                                    classification.motion_level, cls_name, conf);
+                        } else if !dl.is_ready() {
+                            // Buffer filling up — show as absent with low confidence
+                            classification.motion_level = "absent".to_string();
+                            classification.presence = false;
+                            classification.confidence = 0.1;
+                            if current_tick % 500 == 0 {
+                                eprintln!("DL: buffering... ({}/100 frames)", s.tick / 5);
                             }
                         }
                     }
-
                     // Update RSSI history
                     s.rssi_history.push_back(features.mean_rssi);
                     if s.rssi_history.len() > 60 {
@@ -3936,6 +3761,19 @@ async fn main() {
         sleep_log_last_write: std::time::Instant::now(),
         mlp_node_state: std::collections::HashMap::new(),
         mlp_vote_window: Vec::new(),
+        dl_classifier: {
+            let model_dir = std::path::Path::new("/app/models");
+            match dl_classifier::DlClassifier::load(model_dir) {
+                Ok(clf) => {
+                    info!("Deep learning classifier loaded successfully");
+                    Some(clf)
+                }
+                Err(e) => {
+                    warn!("DL classifier not available: {e} — falling back to legacy");
+                    None
+                }
+            }
+        },
     }));
 
     // Start background tasks based on source
