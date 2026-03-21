@@ -1072,7 +1072,9 @@ fn smooth_vitals(state: &mut AppStateInner, raw: &VitalSigns) -> VitalSigns {
     VitalSigns {
         breathing_rate_bpm: if state.smoothed_br > 1.0 { Some(state.smoothed_br) } else { None },
         heart_rate_bpm: if state.smoothed_hr > 1.0 { Some(state.smoothed_hr) } else { None },
+        breathing_rpm: state.smoothed_br,
         breathing_confidence: state.smoothed_br_conf,
+        heartbeat_bpm: state.smoothed_hr,
         heartbeat_confidence: state.smoothed_hr_conf,
         signal_quality: raw.signal_quality,
     }
@@ -1608,7 +1610,7 @@ async fn handle_ws_pose_client(mut socket: WebSocket, state: SharedState) {
     // Send connection established message
     let conn_msg = serde_json::json!({
         "type": "connection_established",
-        "payload": { "status": "connected", "backend": "rust+ruvector" }
+        "payload": { "status": "connected", "backend": "rust+espectre" }
     });
     let _ = socket.send(Message::Text(conn_msg.to_string().into())).await;
 
@@ -2026,7 +2028,7 @@ async fn health_version() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "version": env!("CARGO_PKG_VERSION"),
         "name": "espectre-server",
-        "backend": "rust+axum+ruvector",
+        "backend": "rust+axum+espectre",
     }))
 }
 
@@ -2053,7 +2055,7 @@ async fn api_info(State(state): State<SharedState>) -> Json<serde_json::Value> {
             "wifi_sensing": true,
             "pose_estimation": true,
             "signal_processing": true,
-            "ruvector": true,
+            "espectre": true,
             "streaming": true,
         }
     }))
@@ -2795,7 +2797,7 @@ async fn info_page() -> Html<String> {
     Html(format!(
         "<html><body>\
          <h1>WiFi-DensePose Sensing Server</h1>\
-         <p>Rust + Axum + RuVector</p>\
+         <p>ESPectre Sensing Server</p>\
          <ul>\
          <li><a href='/health'>/health</a> — Server health</li>\
          <li><a href='/api/v1/sensing/latest'>/api/v1/sensing/latest</a> — Latest sensing data</li>\
@@ -3769,7 +3771,7 @@ async fn main() {
         return;
     }
 
-    info!("WiFi-DensePose Sensing Server (Rust + Axum + RuVector)");
+    info!("WiFi-DensePose Sensing Server (ESPectre Sensing Server)");
     info!("  HTTP:      http://localhost:{}", args.http_port);
     info!("  WebSocket: ws://localhost:{}/ws/sensing", args.ws_port);
     info!("  UDP:       0.0.0.0:{} (ESP32 CSI)", args.udp_port);
