@@ -2894,18 +2894,13 @@ async fn udp_receiver_task(state: SharedState, udp_port: u16) {
                         let amps_f32: Vec<f32> = frame.amplitudes.iter().map(|&x| x as f32).collect();
                         let (score, _is_motion) = s.espectre_detector.process_node(frame.node_id, &amps_f32);
                         s.espectre_scores.insert(frame.node_id, score);
-                        // Use median score (robust to one noisy node)
-                        let mut scores_vec: Vec<f32> = s.espectre_scores.values().cloned().collect();
-                        scores_vec.sort_by(|a, b| a.partial_cmp(b).unwrap());
-                        let median_score = if scores_vec.is_empty() { 0.0 }
-                            else if scores_vec.len() == 1 { scores_vec[0] }
-                            else { scores_vec[scores_vec.len() / 2] };
-                        let max_score = scores_vec.last().cloned().unwrap_or(0.0);
-                        // Require at least 2 nodes to agree on motion for presence
+                        // Use max score with EMA smoothing (responsive but stable)
+                        let max_score = s.espectre_scores.values().cloned().fold(0.0f32, f32::max);
                         let nodes_above_2 = s.espectre_scores.values().filter(|&&sc| sc > 2.0).count();
-                        let any_motion = nodes_above_2 >= 2 || median_score > 5.0;
-                        s.espectre_motion = any_motion;
-                        s.espectre_max_score = median_score;
+                        // Smooth the max score to avoid single-frame spikes
+                        s.espectre_max_score = s.espectre_max_score * 0.85 + max_score * 0.15;
+                        let median_score = s.espectre_max_score; // use smoothed max as the decision score
+                        s.espectre_motion = median_score > 2.0;
                         // Override classification if ESPectre has signal (after calibration)
                         // ESPectre always overrides after calibration (score 0 = absent).
                         {
@@ -3040,12 +3035,12 @@ async fn udp_receiver_task(state: SharedState, udp_port: u16) {
                             let voted = counts.iter().enumerate().max_by_key(|&(_, c)| c).unwrap().0;
                             let vote_conf = counts[voted] as f32 / s.mlp_vote_window.len() as f32;
 
-                            if median_score < 1.0 {
+                            if median_score < 0.5 {
                                 // ESPectre: no motion → absent (regardless of MLP)
                                 classification.motion_level = "absent".to_string();
                                 classification.presence = false;
-                                classification.confidence = (1.0 - median_score / 1.0).clamp(0.5, 1.0) as f64;
-                            } else if median_score > 3.0 {
+                                classification.confidence = (1.0 - median_score / 0.5).clamp(0.5, 1.0) as f64;
+                            } else if median_score > 2.0 {
                                 // ESPectre: presence confirmed → use MLP for class detail
                                 let voted_name = match voted {
                                     1 => "present_still", 2 => "present_moving",
@@ -3056,7 +3051,7 @@ async fn udp_receiver_task(state: SharedState, udp_port: u16) {
                                 classification.confidence = (median_score / 10.0).clamp(0.3, 1.0) as f64;
                             } else {
                                 // ESPectre: ambiguous (1-3) → use MLP vote but trust ESPectre for presence
-                                let has_presence = median_score > 2.0 && nodes_above_2 >= 1;
+                                let has_presence = median_score > 0.8;
                                 if has_presence {
                                     let voted_name = match voted {
                                         1 => "present_still", 2 => "present_moving",
