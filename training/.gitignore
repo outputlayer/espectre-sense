@@ -1,0 +1,5 @@
+__pycache__/
+*.jsonl
+prepared/X_*.npy
+prepared/y_*.npy
+*_best.pt

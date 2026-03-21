@@ -1,0 +1,14 @@
+{
+  "model": "csi_cnn_lstm",
+  "classes": [
+    "empty",
+    "lying",
+    "walking",
+    "sitting"
+  ],
+  "input_shape": [
+    100,
+    168
+  ],
+  "params": 203269
+}
