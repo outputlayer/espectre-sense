@@ -2877,8 +2877,6 @@ async fn udp_receiver_task(state: SharedState, udp_port: u16) {
                 }
 
                 if let Some(frame) = parse_esp32_frame(&buf[..len]) {
-                    debug!("ESP32 frame from {src}: node={}, subs={}, seq={}",
-                           frame.node_id, frame.n_subcarriers, frame.sequence);
 
                     let mut s = state.write().await;
                     s.source = "esp32".to_string();
@@ -2914,8 +2912,24 @@ async fn udp_receiver_task(state: SharedState, udp_port: u16) {
                             if current_tick % 200 == 0 {
                                 eprintln!("DL: {} ({:.1}%) | ready={}", label, confidence * 100.0, dl.is_ready());
                             }
-                        } else if !dl.is_ready() {
-                            // Buffer filling up — show as absent with low confidence
+                        } else if dl.is_ready() {
+                            // Subsampled frame skipped — use last DL result
+                            let (label, confidence) = dl.last_result();
+                            let (motion_level, presence) = match label {
+                                "empty" => ("absent", false),
+                                "lying" => ("lying_still", true),
+                                "walking" => ("present_moving", true),
+                                "sitting" => ("present_still", true),
+                                _ => ("absent", false),
+                            };
+                            classification.motion_level = motion_level.to_string();
+                            classification.presence = presence;
+                            classification.confidence = confidence as f64;
+                            if current_tick % 200 == 0 {
+                                eprintln!("DL: {} ({:.1}%) [cached]", label, confidence * 100.0);
+                            }
+                        } else {
+                            // Buffer filling up
                             classification.motion_level = "absent".to_string();
                             classification.presence = false;
                             classification.confidence = 0.1;
