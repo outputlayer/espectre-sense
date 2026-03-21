@@ -2894,13 +2894,15 @@ async fn udp_receiver_task(state: SharedState, udp_port: u16) {
                         let amps_f32: Vec<f32> = frame.amplitudes.iter().map(|&x| x as f32).collect();
                         let (score, _is_motion) = s.espectre_detector.process_node(frame.node_id, &amps_f32);
                         s.espectre_scores.insert(frame.node_id, score);
-                        // Use max score with EMA smoothing (responsive but stable)
+                        // Use mean score across nodes (robust to one noisy node) + EMA smoothing
+                        let n_nodes = s.espectre_scores.len().max(1) as f32;
+                        let mean_score = s.espectre_scores.values().sum::<f32>() / n_nodes;
                         let max_score = s.espectre_scores.values().cloned().fold(0.0f32, f32::max);
                         let nodes_above_2 = s.espectre_scores.values().filter(|&&sc| sc > 2.0).count();
-                        // Smooth the max score to avoid single-frame spikes
-                        s.espectre_max_score = s.espectre_max_score * 0.85 + max_score * 0.15;
-                        let median_score = s.espectre_max_score; // use smoothed max as the decision score
-                        s.espectre_motion = median_score > 2.0;
+                        // Smooth with faster EMA (0.6 decay = quicker cooldown)
+                        s.espectre_max_score = s.espectre_max_score * 0.6 + mean_score * 0.4;
+                        let median_score = s.espectre_max_score; // smoothed mean as decision score
+                        s.espectre_motion = median_score > 1.5;
                         // Override classification if ESPectre has signal (after calibration)
                         // ESPectre always overrides after calibration (score 0 = absent).
                         {
@@ -3035,12 +3037,12 @@ async fn udp_receiver_task(state: SharedState, udp_port: u16) {
                             let voted = counts.iter().enumerate().max_by_key(|&(_, c)| c).unwrap().0;
                             let vote_conf = counts[voted] as f32 / s.mlp_vote_window.len() as f32;
 
-                            if median_score < 0.5 {
+                            if median_score < 1.0 {
                                 // ESPectre: no motion → absent (regardless of MLP)
                                 classification.motion_level = "absent".to_string();
                                 classification.presence = false;
-                                classification.confidence = (1.0 - median_score / 0.5).clamp(0.5, 1.0) as f64;
-                            } else if median_score > 2.0 {
+                                classification.confidence = (1.0 - median_score / 1.0).clamp(0.5, 1.0) as f64;
+                            } else if median_score > 2.5 {
                                 // ESPectre: presence confirmed → use MLP for class detail
                                 let voted_name = match voted {
                                     1 => "present_still", 2 => "present_moving",
@@ -3051,7 +3053,7 @@ async fn udp_receiver_task(state: SharedState, udp_port: u16) {
                                 classification.confidence = (median_score / 10.0).clamp(0.3, 1.0) as f64;
                             } else {
                                 // ESPectre: ambiguous (1-3) → use MLP vote but trust ESPectre for presence
-                                let has_presence = median_score > 0.8;
+                                let has_presence = median_score > 1.5;
                                 if has_presence {
                                     let voted_name = match voted {
                                         1 => "present_still", 2 => "present_moving",
@@ -3065,8 +3067,8 @@ async fn udp_receiver_task(state: SharedState, udp_port: u16) {
                                 classification.confidence = (median_score / 10.0).clamp(0.1, 0.6) as f64;
                             }
                             if s.tick % 500 == 0 {
-                                eprintln!("FUSED: esp_med={:.1} nodes>2={} → {} | MLP: {} ({:.2})",
-                                    median_score, nodes_above_2, classification.motion_level, cls_name, conf);
+                                eprintln!("FUSED: esp_mean={:.2} max={:.1} nodes>2={} → {} | MLP: {} ({:.2})",
+                                    median_score, max_score, nodes_above_2, classification.motion_level, cls_name, conf);
                             }
                         }
                     }
