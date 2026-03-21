@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ESPectre — Training Session</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg-dim: #232a2e; --bg0: #2d353b; --bg1: #343f44; --bg2: #3d484d;
+  --bg3: #475258; --bg4: #4f585e; --fg: #d3c6aa; --red: #e67e80;
+  --green: #a7c080; --yellow: #dbbc7f; --teal: #7fbbb3; --pink: #d699b6;
+  --mint: #83c092; --grey0: #7a8478; --grey1: #859289; --grey2: #9da9a0;
+}
+body { background: var(--bg-dim); color: var(--fg); font-family: 'Inter', sans-serif; min-height: 100vh; }
+
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 24px; background: var(--bg0); border-bottom: 1px solid var(--bg2);
+}
+.logo { display: flex; align-items: center; gap: 10px; }
+.logo-icon { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, var(--yellow), var(--red)); display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--bg-dim); font-weight: 700; }
+.logo-text { font-size: 15px; font-weight: 600; }
+.logo-sub { font-size: 11px; color: var(--grey0); margin-left: 6px; }
+.nav-links { display: flex; gap: 12px; }
+.nav-links a { color: var(--grey1); text-decoration: none; font-size: 12px; padding: 5px 10px; border-radius: 6px; transition: all 0.2s; }
+.nav-links a:hover, .nav-links a.active { color: var(--fg); background: var(--bg2); }
+
+.container { max-width: 800px; margin: 0 auto; padding: 20px 24px; }
+
+.status-banner {
+  background: var(--bg0); border: 2px solid var(--bg2); border-radius: 12px;
+  padding: 20px; text-align: center; margin-bottom: 20px;
+}
+.status-banner.recording { border-color: var(--red); }
+.status-banner.recording .status-text { color: var(--red); }
+.status-text { font-size: 22px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+.status-sub { font-size: 12px; color: var(--grey1); margin-top: 6px; }
+.timer { font-size: 36px; font-weight: 700; font-family: 'JetBrains Mono', monospace; color: var(--red); margin-top: 8px; }
+
+.instructions {
+  background: var(--bg0); border: 1px solid var(--bg2); border-radius: 12px;
+  padding: 16px; margin-bottom: 20px; font-size: 13px; color: var(--grey2); line-height: 1.6;
+}
+.instructions h3 { color: var(--fg); font-size: 14px; margin-bottom: 8px; }
+
+.class-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px;
+}
+.class-btn {
+  background: var(--bg0); border: 2px solid var(--bg2); border-radius: 12px;
+  padding: 24px 16px; text-align: center; cursor: pointer; transition: all 0.2s;
+}
+.class-btn:hover { border-color: var(--bg4); transform: translateY(-2px); }
+.class-btn.active { border-color: var(--green); background: rgba(167,192,128,0.08); }
+.class-btn.recording { border-color: var(--red); background: rgba(230,126,128,0.08); animation: pulse 1.5s infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.7; } }
+.class-btn .icon { font-size: 32px; margin-bottom: 8px; }
+.class-btn .label { font-size: 14px; font-weight: 600; }
+.class-btn .desc { font-size: 11px; color: var(--grey0); margin-top: 4px; }
+.class-btn .count { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--grey1); margin-top: 8px; }
+
+.stop-btn {
+  width: 100%; padding: 16px; border: none; border-radius: 12px;
+  background: var(--red); color: var(--bg-dim); font-size: 16px; font-weight: 700;
+  cursor: pointer; display: none; margin-bottom: 20px; transition: all 0.2s;
+}
+.stop-btn:hover { opacity: 0.9; }
+.stop-btn.visible { display: block; }
+
+.log {
+  background: var(--bg0); border: 1px solid var(--bg2); border-radius: 12px;
+  padding: 16px; max-height: 300px; overflow-y: auto;
+}
+.log h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--grey0); margin-bottom: 10px; }
+.log-entry { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--grey1); padding: 3px 0; border-bottom: 1px solid var(--bg1); }
+.log-entry .time { color: var(--grey0); }
+.log-entry .action { color: var(--teal); }
+.log-entry .error { color: var(--red); }
+
+.existing {
+  background: var(--bg0); border: 1px solid var(--bg2); border-radius: 12px;
+  padding: 16px; margin-bottom: 20px;
+}
+.existing h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--grey0); margin-bottom: 10px; }
+.existing-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--bg1); font-size: 12px; }
+.existing-item .name { color: var(--fg); font-family: 'JetBrains Mono', monospace; }
+.existing-item .size { color: var(--grey0); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">T</div>
+    <span class="logo-text">Training Session</span>
+    <span class="logo-sub">ESPectre</span>
+  </div>
+  <div class="nav-links">
+    <a href="heatmap.html">Heatmap</a>
+    <a href="sleep.html">Sleep</a>
+    <a href="train.html" class="active">Train</a>
+  </div>
+</div>
+
+<div class="container">
+  <div class="instructions">
+    <h3>How to collect training data</h3>
+    1. Click a class button to start recording CSI data with that label<br>
+    2. Perform the described activity for 2-5 minutes<br>
+    3. Click STOP or switch to another class<br>
+    4. Repeat for different conditions (door open/closed, day/night, different positions)<br>
+    5. More data = better model accuracy
+  </div>
+
+  <div class="status-banner" id="statusBanner">
+    <div class="status-text" id="statusText">Ready to record</div>
+    <div class="status-sub" id="statusSub">Select a class below to start</div>
+    <div class="timer" id="timer" style="display:none">00:00</div>
+  </div>
+
+  <button class="stop-btn" id="stopBtn" onclick="stopRecording()">STOP RECORDING</button>
+
+  <div class="class-grid">
+    <div class="class-btn" id="btn_empty" onclick="startRecording('train_empty_v2', 'empty')">
+      <div class="icon" style="color:var(--bg4)">&#9723;</div>
+      <div class="label">Empty Room</div>
+      <div class="desc">Leave the room completely. Close the door.</div>
+      <div class="count" id="count_empty">--</div>
+    </div>
+    <div class="class-btn" id="btn_still" onclick="startRecording('train_sitting_still_v2', 'still')">
+      <div class="icon" style="color:var(--green)">&#9632;</div>
+      <div class="label">Sitting Still</div>
+      <div class="desc">Sit at desk normally. Minimal movement.</div>
+      <div class="count" id="count_still">--</div>
+    </div>
+    <div class="class-btn" id="btn_walking" onclick="startRecording('train_walking_v2', 'walking')">
+      <div class="icon" style="color:var(--yellow)">&#9654;</div>
+      <div class="label">Walking / Moving</div>
+      <div class="desc">Walk around the room naturally.</div>
+      <div class="count" id="count_walking">--</div>
+    </div>
+    <div class="class-btn" id="btn_active" onclick="startRecording('train_active_v2', 'active')">
+      <div class="icon" style="color:var(--red)">&#9733;</div>
+      <div class="label">Active / Exercise</div>
+      <div class="desc">Jumping, waving, exercising. Big movement.</div>
+      <div class="count" id="count_active">--</div>
+    </div>
+    <div class="class-btn" id="btn_lying" onclick="startRecording('train_lying_still_v2', 'lying')">
+      <div class="icon" style="color:var(--teal)">&#9644;</div>
+      <div class="label">Lying Down</div>
+      <div class="desc">Lie in bed/couch. Simulate sleeping position.</div>
+      <div class="count" id="count_lying">--</div>
+    </div>
+    <div class="class-btn" id="btn_door" onclick="startRecording('train_empty_door_open_v2', 'door')">
+      <div class="icon" style="color:var(--pink)">&#9727;</div>
+      <div class="label">Empty + Door Open</div>
+      <div class="desc">Leave room but keep door OPEN.</div>
+      <div class="count" id="count_door">--</div>
+    </div>
+  </div>
+
+  <div class="existing" id="existingSection">
+    <h3>Existing Recordings</h3>
+    <div id="existingList">Loading...</div>
+  </div>
+
+  <div class="log">
+    <h3>Session Log</h3>
+    <div id="logEntries"></div>
+  </div>
+</div>
+
+<script>
+const BASE = `${location.protocol}//${location.hostname}:${location.hostname === 'localhost' || location.hostname === '127.0.0.1' ? 4000 : 3030}`;
+
+let recording = false;
+let currentClass = null;
+let timerInterval = null;
+let startTime = null;
+
+function log(msg, type = 'action') {
+  const el = document.getElementById('logEntries');
+  const time = new Date().toLocaleTimeString();
+  el.innerHTML = `<div class="log-entry"><span class="time">${time}</span> <span class="${type}">${msg}</span></div>` + el.innerHTML;
+}
+
+async function startRecording(id, cls) {
+  if (recording) {
+    await stopRecording();
+    // Small delay before starting new
+    await new Promise(r => setTimeout(r, 500));
+  }
+
+  try {
+    const resp = await fetch(`${BASE}/api/v1/recording/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: id }),
+    });
+    const data = await resp.json();
+    if (data.error) {
+      log(`Error: ${data.error}`, 'error');
+      return;
+    }
+
+    recording = true;
+    currentClass = cls;
+    startTime = Date.now();
+
+    // Update UI
+    document.getElementById('statusBanner').className = 'status-banner recording';
+    document.getElementById('statusText').textContent = `Recording: ${id}`;
+    document.getElementById('statusSub').textContent = 'Perform the described activity...';
+    document.getElementById('timer').style.display = 'block';
+    document.getElementById('stopBtn').className = 'stop-btn visible';
+
+    // Highlight active button
+    document.querySelectorAll('.class-btn').forEach(b => b.classList.remove('active', 'recording'));
+    document.getElementById(`btn_${cls}`).classList.add('recording');
+
+    // Start timer
+    timerInterval = setInterval(updateTimer, 1000);
+
+    log(`Started recording: ${id}`);
+  } catch (e) {
+    log(`Failed to start: ${e.message}`, 'error');
+  }
+}
+
+async function stopRecording() {
+  if (!recording) return;
+
+  try {
+    const resp = await fetch(`${BASE}/api/v1/recording/stop`, {
+      method: 'POST',
+    });
+    const data = await resp.json();
+
+    recording = false;
+    currentClass = null;
+    clearInterval(timerInterval);
+
+    // Update UI
+    document.getElementById('statusBanner').className = 'status-banner';
+    document.getElementById('statusText').textContent = 'Ready to record';
+    document.getElementById('statusSub').textContent = 'Select a class below to start';
+    document.getElementById('timer').style.display = 'none';
+    document.getElementById('stopBtn').className = 'stop-btn';
+    document.querySelectorAll('.class-btn').forEach(b => b.classList.remove('active', 'recording'));
+
+    log(`Stopped: ${data.recording_id} (${data.duration_secs}s)`);
+    loadExistingRecordings();
+  } catch (e) {
+    log(`Failed to stop: ${e.message}`, 'error');
+  }
+}
+
+function updateTimer() {
+  if (!startTime) return;
+  const elapsed = Math.floor((Date.now() - startTime) / 1000);
+  const min = String(Math.floor(elapsed / 60)).padStart(2, '0');
+  const sec = String(elapsed % 60).padStart(2, '0');
+  document.getElementById('timer').textContent = `${min}:${sec}`;
+}
+
+async function loadExistingRecordings() {
+  try {
+    const resp = await fetch(`${BASE}/api/v1/recording/list`);
+    const data = await resp.json();
+    const list = data.recordings || [];
+
+    const el = document.getElementById('existingList');
+    if (list.length === 0) {
+      el.innerHTML = '<div style="color:var(--grey0);font-size:12px;">No recordings yet</div>';
+      return;
+    }
+
+    el.innerHTML = list.map(r => {
+      const name = r.id || r.filename || 'unknown';
+      const size = r.size_bytes ? `${(r.size_bytes / 1024 / 1024).toFixed(1)} MB` : '';
+      const frames = r.frames ? `${r.frames} frames` : '';
+      return `<div class="existing-item">
+        <span class="name">${name}</span>
+        <span class="size">${size} ${frames}</span>
+      </div>`;
+    }).join('');
+
+    // Update button counts
+    const counts = {};
+    list.forEach(r => {
+      const name = (r.id || r.filename || '').toLowerCase();
+      if (name.includes('empty') && !name.includes('door')) counts.empty = (counts.empty || 0) + 1;
+      if (name.includes('still') && !name.includes('lying')) counts.still = (counts.still || 0) + 1;
+      if (name.includes('walking')) counts.walking = (counts.walking || 0) + 1;
+      if (name.includes('active')) counts.active = (counts.active || 0) + 1;
+      if (name.includes('lying')) counts.lying = (counts.lying || 0) + 1;
+      if (name.includes('door')) counts.door = (counts.door || 0) + 1;
+    });
+    for (const [cls, cnt] of Object.entries(counts)) {
+      const el = document.getElementById(`count_${cls}`);
+      if (el) el.textContent = `${cnt} recording(s)`;
+    }
+  } catch (e) {
+    log(`Failed to load recordings: ${e.message}`, 'error');
+  }
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' || e.key === ' ') { e.preventDefault(); stopRecording(); }
+  if (e.key === '1') startRecording('train_empty_v2', 'empty');
+  if (e.key === '2') startRecording('train_sitting_still_v2', 'still');
+  if (e.key === '3') startRecording('train_walking_v2', 'walking');
+  if (e.key === '4') startRecording('train_active_v2', 'active');
+  if (e.key === '5') startRecording('train_lying_still_v2', 'lying');
+  if (e.key === '6') startRecording('train_empty_door_open_v2', 'door');
+});
+
+// Init
+loadExistingRecordings();
+log('Training session ready. Press 1-6 or click a button.');
+</script>
+</body>
+</html>
