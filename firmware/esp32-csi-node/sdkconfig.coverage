@@ -1,0 +1,54 @@
+# sdkconfig.coverage -- ESP-IDF sdkconfig overlay for gcov/lcov code coverage
+#
+# This overlay enables GCC code coverage instrumentation (gcov) and the
+# application-level trace (apptrace) channel required to extract .gcda
+# files from the target via JTAG/QEMU GDB.
+#
+# Usage (combine with sdkconfig.defaults as the base):
+#
+#   idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.coverage" build
+#
+# After running the firmware under QEMU, dump coverage data through GDB:
+#
+#   (gdb) mon gcov dump
+#
+# Then process the .gcda files on the host with lcov/genhtml:
+#
+#   lcov --capture --directory build --output-file coverage.info \
+#        --gcov-tool xtensa-esp-elf-gcov
+#   genhtml coverage.info --output-directory coverage_html
+
+# ---------------------------------------------------------------------------
+# Compiler: disable optimizations so every source line maps 1:1 to object code
+# ---------------------------------------------------------------------------
+CONFIG_COMPILER_OPTIMIZATION_NONE=y
+
+# ---------------------------------------------------------------------------
+# Application-level trace: enables the gcov data channel over JTAG
+# ---------------------------------------------------------------------------
+CONFIG_APPTRACE_ENABLE=y
+CONFIG_APPTRACE_DEST_JTAG=y
+
+# ---------------------------------------------------------------------------
+# CSI mock mode: identical to sdkconfig.qemu so coverage runs use the same
+# deterministic mock data path (no real WiFi hardware needed)
+# ---------------------------------------------------------------------------
+CONFIG_CSI_MOCK_ENABLED=y
+CONFIG_CSI_MOCK_SKIP_WIFI_CONNECT=y
+CONFIG_CSI_MOCK_SCENARIO=255
+CONFIG_CSI_TARGET_IP="10.0.2.2"
+CONFIG_CSI_MOCK_SCENARIO_DURATION_MS=5000
+CONFIG_CSI_MOCK_LOG_FRAMES=y
+
+# ---------------------------------------------------------------------------
+# FreeRTOS and watchdog: match sdkconfig.qemu for QEMU timing tolerance
+# ---------------------------------------------------------------------------
+CONFIG_FREERTOS_TIMER_TASK_STACK_DEPTH=4096
+CONFIG_ESP_TASK_WDT_TIMEOUT_S=30
+CONFIG_ESP_INT_WDT_TIMEOUT_MS=800
+
+# ---------------------------------------------------------------------------
+# Logging and display
+# ---------------------------------------------------------------------------
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+CONFIG_DISPLAY_ENABLE=n

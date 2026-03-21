@@ -1,0 +1,27 @@
+# QEMU ESP32-S3 sdkconfig overlay (ADR-061)
+#
+# Merge with: idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.qemu" build
+
+# ---- Mock CSI generator (replaces real WiFi CSI) ----
+CONFIG_CSI_MOCK_ENABLED=y
+CONFIG_CSI_MOCK_SKIP_WIFI_CONNECT=y
+CONFIG_CSI_MOCK_SCENARIO=255
+CONFIG_CSI_MOCK_SCENARIO_DURATION_MS=5000
+CONFIG_CSI_MOCK_LOG_FRAMES=y
+
+# ---- Network (QEMU SLIRP provides 10.0.2.x) ----
+CONFIG_CSI_TARGET_IP="10.0.2.2"
+
+# ---- Logging (verbose for validation) ----
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+
+# ---- FreeRTOS tuning for QEMU ----
+# Increase timer task stack to prevent overflow from mock_csi timer callback
+CONFIG_FREERTOS_TIMER_TASK_STACK_DEPTH=4096
+
+# ---- Watchdog (relaxed for emulation — QEMU timing is not cycle-accurate) ----
+CONFIG_ESP_TASK_WDT_TIMEOUT_S=30
+CONFIG_ESP_INT_WDT_TIMEOUT_MS=800
+
+# ---- Disable hardware-dependent features ----
+CONFIG_DISPLAY_ENABLE=n
