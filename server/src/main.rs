@@ -2290,9 +2290,21 @@ fn scan_lora_profiles() -> Vec<serde_json::Value> {
 // ── Recording Endpoints ─────────────────────────────────────────────────────
 
 /// GET /api/v1/recording/list — list CSI recordings.
-async fn list_recordings() -> Json<serde_json::Value> {
+async fn list_recordings(State(state): State<SharedState>) -> Json<serde_json::Value> {
     let recordings = scan_recording_files();
-    Json(serde_json::json!({ "recordings": recordings }))
+    let s = state.read().await;
+    let active = if s.recording_active {
+        let elapsed = s.recording_start_time
+            .map(|t| t.elapsed().as_secs())
+            .unwrap_or(0);
+        Some(serde_json::json!({
+            "recording_id": s.recording_current_id,
+            "elapsed_secs": elapsed,
+        }))
+    } else {
+        None
+    };
+    Json(serde_json::json!({ "recordings": recordings, "active": active }))
 }
 
 /// POST /api/v1/recording/start — start recording CSI data.

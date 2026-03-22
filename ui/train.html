@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ESPectre — Training Session</title>
+<title>ESPectre Sense — Training</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -95,11 +95,10 @@ body { background: var(--bg-dim); color: var(--fg); font-family: 'Inter', sans-s
   <div class="logo">
     <div class="logo-icon">T</div>
     <span class="logo-text">Training Session</span>
-    <span class="logo-sub">ESPectre</span>
+    <span class="logo-sub">ESPectre Sense</span>
   </div>
   <div class="nav-links">
     <a href="heatmap.html">Heatmap</a>
-    <a href="sleep.html">Sleep</a>
     <a href="train.html" class="active">Train</a>
   </div>
 </div>
@@ -108,10 +107,9 @@ body { background: var(--bg-dim); color: var(--fg); font-family: 'Inter', sans-s
   <div class="instructions">
     <h3>How to collect training data</h3>
     1. Click a class button to start recording CSI data with that label<br>
-    2. Perform the described activity for 2-5 minutes<br>
-    3. Click STOP or switch to another class<br>
-    4. Repeat for different conditions (door open/closed, day/night, different positions)<br>
-    5. More data = better model accuracy
+    2. Perform the described activity for 3-10 minutes<br>
+    3. Click STOP when done<br>
+    4. More data = better model. Record multiple sessions per class.
   </div>
 
   <div class="status-banner" id="statusBanner">
@@ -123,41 +121,29 @@ body { background: var(--bg-dim); color: var(--fg); font-family: 'Inter', sans-s
   <button class="stop-btn" id="stopBtn" onclick="stopRecording()">STOP RECORDING</button>
 
   <div class="class-grid">
-    <div class="class-btn" id="btn_empty" onclick="startRecording(recId('train_empty'), 'empty')">
+    <div class="class-btn" id="btn_empty" onclick="startRecording('empty')">
       <div class="icon" style="color:var(--bg4)">&#9723;</div>
       <div class="label">Empty Room</div>
       <div class="desc">Leave the room completely. Close the door.</div>
       <div class="count" id="count_empty">--</div>
     </div>
-    <div class="class-btn" id="btn_still" onclick="startRecording(recId('train_sitting_still'), 'still')">
-      <div class="icon" style="color:var(--green)">&#9632;</div>
-      <div class="label">Sitting Still</div>
-      <div class="desc">Sit at desk normally. Minimal movement.</div>
-      <div class="count" id="count_still">--</div>
-    </div>
-    <div class="class-btn" id="btn_walking" onclick="startRecording(recId('train_walking'), 'walking')">
-      <div class="icon" style="color:var(--yellow)">&#9654;</div>
-      <div class="label">Walking / Moving</div>
-      <div class="desc">Walk around the room naturally.</div>
-      <div class="count" id="count_walking">--</div>
-    </div>
-    <div class="class-btn" id="btn_active" onclick="startRecording(recId('train_active'), 'active')">
-      <div class="icon" style="color:var(--red)">&#9733;</div>
-      <div class="label">Active / Exercise</div>
-      <div class="desc">Jumping, waving, exercising. Big movement.</div>
-      <div class="count" id="count_active">--</div>
-    </div>
-    <div class="class-btn" id="btn_lying" onclick="startRecording(recId('train_lying_still'), 'lying')">
+    <div class="class-btn" id="btn_lying" onclick="startRecording('lying')">
       <div class="icon" style="color:var(--teal)">&#9644;</div>
       <div class="label">Lying Down</div>
-      <div class="desc">Lie in bed/couch. Simulate sleeping position.</div>
+      <div class="desc">Lie in bed/couch. Stay still, simulate sleeping.</div>
       <div class="count" id="count_lying">--</div>
     </div>
-    <div class="class-btn" id="btn_door" onclick="startRecording(recId('train_empty_door_open'), 'door')">
-      <div class="icon" style="color:var(--pink)">&#9727;</div>
-      <div class="label">Empty + Door Open</div>
-      <div class="desc">Leave room but keep door OPEN.</div>
-      <div class="count" id="count_door">--</div>
+    <div class="class-btn" id="btn_sitting" onclick="startRecording('sitting')">
+      <div class="icon" style="color:var(--green)">&#9632;</div>
+      <div class="label">Sitting</div>
+      <div class="desc">Sit at desk normally. Minimal movement.</div>
+      <div class="count" id="count_sitting">--</div>
+    </div>
+    <div class="class-btn" id="btn_walking" onclick="startRecording('walking')">
+      <div class="icon" style="color:var(--yellow)">&#9654;</div>
+      <div class="label">Walking</div>
+      <div class="desc">Walk around the room naturally.</div>
+      <div class="count" id="count_walking">--</div>
     </div>
   </div>
 
@@ -173,17 +159,17 @@ body { background: var(--bg-dim); color: var(--fg); font-family: 'Inter', sans-s
 </div>
 
 <script>
-const BASE = `${location.protocol}//${location.hostname}:${location.hostname === 'localhost' || location.hostname === '127.0.0.1' ? 4000 : 3030}`;
+const BASE = `${location.protocol}//${location.hostname}:${location.port || (location.hostname === 'localhost' || location.hostname === '127.0.0.1' ? '4000' : '3030')}`;
 
 let recording = false;
 let currentClass = null;
 let timerInterval = null;
-let startTime = null;
+let recordingStartEpoch = null; // epoch ms when recording started
 
-function recId(prefix) {
+function recId(cls) {
   const d = new Date();
   const ts = d.toISOString().slice(0,16).replace(/[-:T]/g, '');
-  return `${prefix}_${ts}`;
+  return `train_${cls}_${ts}`;
 }
 
 function log(msg, type = 'action') {
@@ -192,13 +178,48 @@ function log(msg, type = 'action') {
   el.innerHTML = `<div class="log-entry"><span class="time">${time}</span> <span class="${type}">${msg}</span></div>` + el.innerHTML;
 }
 
-async function startRecording(id, cls) {
+function setRecordingUI(id, cls, elapsedSecs) {
+  recording = true;
+  currentClass = cls;
+  recordingStartEpoch = Date.now() - (elapsedSecs * 1000);
+
+  document.getElementById('statusBanner').className = 'status-banner recording';
+  document.getElementById('statusText').textContent = `Recording: ${id}`;
+  document.getElementById('statusSub').textContent = 'Perform the described activity...';
+  document.getElementById('timer').style.display = 'block';
+  document.getElementById('stopBtn').className = 'stop-btn visible';
+
+  document.querySelectorAll('.class-btn').forEach(b => b.classList.remove('active', 'recording'));
+  if (cls && document.getElementById(`btn_${cls}`)) {
+    document.getElementById(`btn_${cls}`).classList.add('recording');
+  }
+
+  clearInterval(timerInterval);
+  updateTimer();
+  timerInterval = setInterval(updateTimer, 1000);
+}
+
+function clearRecordingUI() {
+  recording = false;
+  currentClass = null;
+  recordingStartEpoch = null;
+  clearInterval(timerInterval);
+
+  document.getElementById('statusBanner').className = 'status-banner';
+  document.getElementById('statusText').textContent = 'Ready to record';
+  document.getElementById('statusSub').textContent = 'Select a class below to start';
+  document.getElementById('timer').style.display = 'none';
+  document.getElementById('stopBtn').className = 'stop-btn';
+  document.querySelectorAll('.class-btn').forEach(b => b.classList.remove('active', 'recording'));
+}
+
+async function startRecording(cls) {
   if (recording) {
     await stopRecording();
-    // Small delay before starting new
     await new Promise(r => setTimeout(r, 500));
   }
 
+  const id = recId(cls);
   try {
     const resp = await fetch(`${BASE}/api/v1/recording/start`, {
       method: 'POST',
@@ -208,67 +229,68 @@ async function startRecording(id, cls) {
     const data = await resp.json();
     if (data.error) {
       log(`Error: ${data.error}`, 'error');
+      // If already recording, try to resume UI
+      if (data.recording_id) {
+        checkActiveRecording();
+      }
       return;
     }
 
-    recording = true;
-    currentClass = cls;
-    startTime = Date.now();
-
-    // Update UI
-    document.getElementById('statusBanner').className = 'status-banner recording';
-    document.getElementById('statusText').textContent = `Recording: ${id}`;
-    document.getElementById('statusSub').textContent = 'Perform the described activity...';
-    document.getElementById('timer').style.display = 'block';
-    document.getElementById('stopBtn').className = 'stop-btn visible';
-
-    // Highlight active button
-    document.querySelectorAll('.class-btn').forEach(b => b.classList.remove('active', 'recording'));
-    document.getElementById(`btn_${cls}`).classList.add('recording');
-
-    // Start timer
-    timerInterval = setInterval(updateTimer, 1000);
-
-    log(`Started recording: ${id}`);
+    setRecordingUI(data.recording_id || id, cls, 0);
+    log(`Started recording: ${data.recording_id || id}`);
   } catch (e) {
     log(`Failed to start: ${e.message}`, 'error');
   }
 }
 
 async function stopRecording() {
-  if (!recording) return;
-
   try {
-    const resp = await fetch(`${BASE}/api/v1/recording/stop`, {
-      method: 'POST',
-    });
+    const resp = await fetch(`${BASE}/api/v1/recording/stop`, { method: 'POST' });
     const data = await resp.json();
-
-    recording = false;
-    currentClass = null;
-    clearInterval(timerInterval);
-
-    // Update UI
-    document.getElementById('statusBanner').className = 'status-banner';
-    document.getElementById('statusText').textContent = 'Ready to record';
-    document.getElementById('statusSub').textContent = 'Select a class below to start';
-    document.getElementById('timer').style.display = 'none';
-    document.getElementById('stopBtn').className = 'stop-btn';
-    document.querySelectorAll('.class-btn').forEach(b => b.classList.remove('active', 'recording'));
-
-    log(`Stopped: ${data.recording_id} (${data.duration_secs}s)`);
+    clearRecordingUI();
+    log(`Stopped: ${data.recording_id || '?'} (${data.duration_secs || 0}s)`);
     loadExistingRecordings();
   } catch (e) {
     log(`Failed to stop: ${e.message}`, 'error');
+    clearRecordingUI();
   }
 }
 
 function updateTimer() {
-  if (!startTime) return;
-  const elapsed = Math.floor((Date.now() - startTime) / 1000);
+  if (!recordingStartEpoch) return;
+  const elapsed = Math.floor((Date.now() - recordingStartEpoch) / 1000);
   const min = String(Math.floor(elapsed / 60)).padStart(2, '0');
   const sec = String(elapsed % 60).padStart(2, '0');
   document.getElementById('timer').textContent = `${min}:${sec}`;
+}
+
+async function checkActiveRecording() {
+  try {
+    const resp = await fetch(`${BASE}/api/v1/recording/list`);
+    const data = await resp.json();
+
+    // Server returns { recordings: [...], active: { recording_id, elapsed_secs } | null }
+    if (data.active && data.active.recording_id) {
+      const id = data.active.recording_id;
+      const elapsed = data.active.elapsed_secs || 0;
+      const cls = guessClassFromId(id);
+      setRecordingUI(id, cls, elapsed);
+      log(`Resumed active recording: ${id} (${elapsed}s elapsed)`);
+      return;
+    }
+  } catch (e) {
+    // Server might not support active field yet — ignore
+  }
+}
+
+function guessClassFromId(id) {
+  if (!id) return null;
+  const n = id.toLowerCase();
+  if (n.includes('empty')) return 'empty';
+  if (n.includes('lying')) return 'lying';
+  if (n.includes('sitting') || n.includes('still')) return 'sitting';
+  if (n.includes('walking')) return 'walking';
+  return null;
 }
 
 async function loadExistingRecordings() {
@@ -294,19 +316,17 @@ async function loadExistingRecordings() {
     }).join('');
 
     // Update button counts
-    const counts = {};
+    const counts = { empty: 0, lying: 0, sitting: 0, walking: 0 };
     list.forEach(r => {
       const name = (r.id || r.filename || '').toLowerCase();
-      if (name.includes('empty') && !name.includes('door')) counts.empty = (counts.empty || 0) + 1;
-      if (name.includes('still') && !name.includes('lying')) counts.still = (counts.still || 0) + 1;
-      if (name.includes('walking')) counts.walking = (counts.walking || 0) + 1;
-      if (name.includes('active')) counts.active = (counts.active || 0) + 1;
-      if (name.includes('lying')) counts.lying = (counts.lying || 0) + 1;
-      if (name.includes('door')) counts.door = (counts.door || 0) + 1;
+      if (name.includes('empty')) counts.empty++;
+      else if (name.includes('lying')) counts.lying++;
+      else if (name.includes('sitting') || name.includes('still')) counts.sitting++;
+      else if (name.includes('walking')) counts.walking++;
     });
     for (const [cls, cnt] of Object.entries(counts)) {
       const el = document.getElementById(`count_${cls}`);
-      if (el) el.textContent = `${cnt} recording(s)`;
+      if (el) el.textContent = cnt > 0 ? `${cnt} recording(s)` : '--';
     }
   } catch (e) {
     log(`Failed to load recordings: ${e.message}`, 'error');
@@ -316,60 +336,16 @@ async function loadExistingRecordings() {
 // Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' || e.key === ' ') { e.preventDefault(); stopRecording(); }
-  if (e.key === '1') startRecording(recId('train_empty'), 'empty');
-  if (e.key === '2') startRecording(recId('train_sitting_still'), 'still');
-  if (e.key === '3') startRecording(recId('train_walking'), 'walking');
-  if (e.key === '4') startRecording(recId('train_active'), 'active');
-  if (e.key === '5') startRecording(recId('train_lying_still'), 'lying');
-  if (e.key === '6') startRecording(recId('train_empty_door_open'), 'door');
+  if (e.key === '1') startRecording('empty');
+  if (e.key === '2') startRecording('lying');
+  if (e.key === '3') startRecording('sitting');
+  if (e.key === '4') startRecording('walking');
 });
 
-// Check if a recording is already in progress (survives page refresh)
-async function checkActiveRecording() {
-  try {
-    // The server tracks recording state — check via list endpoint
-    const resp = await fetch(`${BASE}/api/v1/recording/list`);
-    const data = await resp.json();
-    const active = (data.recordings || []).find(r => r.status === 'recording');
-    if (active) {
-      recording = true;
-      currentClass = guessClassFromId(active.id);
-      // Estimate start time from duration if available
-      startTime = Date.now() - ((active.duration_secs || 0) * 1000);
-
-      document.getElementById('statusBanner').className = 'status-banner recording';
-      document.getElementById('statusText').textContent = `Recording: ${active.id}`;
-      document.getElementById('statusSub').textContent = 'Recording in progress (resumed after refresh)';
-      document.getElementById('timer').style.display = 'block';
-      document.getElementById('stopBtn').className = 'stop-btn visible';
-
-      if (currentClass) {
-        document.getElementById(`btn_${currentClass}`).classList.add('recording');
-      }
-      timerInterval = setInterval(updateTimer, 1000);
-      log(`Resumed active recording: ${active.id}`);
-    }
-  } catch (e) {
-    // silently ignore — server might not support status field
-  }
-}
-
-function guessClassFromId(id) {
-  if (!id) return null;
-  const n = id.toLowerCase();
-  if (n.includes('empty') && n.includes('door')) return 'door';
-  if (n.includes('empty')) return 'empty';
-  if (n.includes('lying')) return 'lying';
-  if (n.includes('still') || n.includes('sitting')) return 'still';
-  if (n.includes('walking')) return 'walking';
-  if (n.includes('active')) return 'active';
-  return null;
-}
-
-// Init
+// Init — check for active recording first, then load list
 checkActiveRecording();
 loadExistingRecordings();
-log('Training session ready. Press 1-6 or click a button.');
+log('Training session ready. Press 1-4 or click a button.');
 </script>
 </body>
 </html>
