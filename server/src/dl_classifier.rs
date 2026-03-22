@@ -1,7 +1,7 @@
 //! Pure-Rust CNN inference for WiFi CSI room presence classification.
 //!
-//! Implements CSINetLight (Conv1d + BN + ReLU + MaxPool → Dense) without any
-//! ML framework dependency. Weights are loaded from a JSON export.
+//! v4: L2 normalization + baseline subtraction + global normalization +
+//!     adaptive baseline + temporal voting (smooth predictions).
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -13,12 +13,17 @@ const WINDOW: usize = 40;
 const SUBSAMPLE: usize = 5;
 const INFER_EVERY: usize = 1;
 const CLASSES: [&str; 4] = ["empty", "lying", "walking", "sitting"];
+const NUM_CLASSES: usize = 4;
 
-// ── Tiny NN ops ──────────────────────────────────────────────────────────────
+const BASELINE_ADAPT_RATE: f32 = 0.005;
+const BASELINE_CONFIDENCE_THRESHOLD: f32 = 0.85;
+const VOTE_WINDOW: usize = 5; // smooth over last 5 predictions
+
+// ── NN ops ───────────────────────────────────────────────────────────────────
 
 fn conv1d(input: &[f32], out: &mut [f32], weight: &[f32], bias: &[f32],
           in_ch: usize, out_ch: usize, kernel: usize, padding: usize, seq_len: usize) {
-    let out_len = seq_len; // same padding
+    let out_len = seq_len;
     for oc in 0..out_ch {
         for t in 0..out_len {
             let mut sum = bias[oc];
@@ -26,9 +31,8 @@ fn conv1d(input: &[f32], out: &mut [f32], weight: &[f32], bias: &[f32],
                 for k in 0..kernel {
                     let pos = t as isize + k as isize - padding as isize;
                     if pos >= 0 && (pos as usize) < seq_len {
-                        let w_idx = oc * in_ch * kernel + ic * kernel + k;
-                        let i_idx = ic * seq_len + pos as usize;
-                        sum += weight[w_idx] * input[i_idx];
+                        sum += weight[oc * in_ch * kernel + ic * kernel + k]
+                             * input[ic * seq_len + pos as usize];
                     }
                 }
             }
@@ -42,29 +46,22 @@ fn batchnorm(data: &mut [f32], gamma: &[f32], beta: &[f32],
     let eps = 1e-5f32;
     for c in 0..channels {
         let inv_std = 1.0 / (var[c] + eps).sqrt();
-        let g = gamma[c];
-        let b = beta[c];
-        let m = mean[c];
         for t in 0..seq_len {
             let idx = c * seq_len + t;
-            data[idx] = g * (data[idx] - m) * inv_std + b;
+            data[idx] = gamma[c] * (data[idx] - mean[c]) * inv_std + beta[c];
         }
     }
 }
 
 fn relu(data: &mut [f32]) {
-    for v in data.iter_mut() {
-        if *v < 0.0 { *v = 0.0; }
-    }
+    for v in data.iter_mut() { if *v < 0.0 { *v = 0.0; } }
 }
 
 fn maxpool1d(input: &[f32], out: &mut [f32], channels: usize, in_len: usize) -> usize {
     let out_len = in_len / 2;
     for c in 0..channels {
         for t in 0..out_len {
-            let a = input[c * in_len + t * 2];
-            let b = input[c * in_len + t * 2 + 1];
-            out[c * out_len + t] = a.max(b);
+            out[c * out_len + t] = input[c * in_len + t * 2].max(input[c * in_len + t * 2 + 1]);
         }
     }
     out_len
@@ -72,19 +69,14 @@ fn maxpool1d(input: &[f32], out: &mut [f32], channels: usize, in_len: usize) -> 
 
 fn adaptive_avg_pool1d(input: &[f32], out: &mut [f32], channels: usize, in_len: usize) {
     for c in 0..channels {
-        let sum: f32 = (0..in_len).map(|t| input[c * in_len + t]).sum();
-        out[c] = sum / in_len as f32;
+        out[c] = (0..in_len).map(|t| input[c * in_len + t]).sum::<f32>() / in_len as f32;
     }
 }
 
 fn linear(input: &[f32], out: &mut [f32], weight: &[f32], bias: &[f32],
           in_f: usize, out_f: usize) {
     for o in 0..out_f {
-        let mut sum = bias[o];
-        for i in 0..in_f {
-            sum += weight[o * in_f + i] * input[i];
-        }
-        out[o] = sum;
+        out[o] = bias[o] + (0..in_f).map(|i| weight[o * in_f + i] * input[i]).sum::<f32>();
     }
 }
 
@@ -95,19 +87,15 @@ fn softmax(logits: &[f32]) -> Vec<f32> {
     exps.iter().map(|&e| e / sum).collect()
 }
 
-// ── Model weights ────────────────────────────────────────────────────────────
+// ── Weights ──────────────────────────────────────────────────────────────────
 
 struct ModelWeights {
-    // Conv block 1: 168 → 128, k=7, pad=3
     conv1_w: Vec<f32>, conv1_b: Vec<f32>,
     bn1_gamma: Vec<f32>, bn1_beta: Vec<f32>, bn1_mean: Vec<f32>, bn1_var: Vec<f32>,
-    // Conv block 2: 128 → 256, k=5, pad=2
     conv2_w: Vec<f32>, conv2_b: Vec<f32>,
     bn2_gamma: Vec<f32>, bn2_beta: Vec<f32>, bn2_mean: Vec<f32>, bn2_var: Vec<f32>,
-    // Conv block 3: 256 → 128, k=3, pad=1
     conv3_w: Vec<f32>, conv3_b: Vec<f32>,
     bn3_gamma: Vec<f32>, bn3_beta: Vec<f32>, bn3_mean: Vec<f32>, bn3_var: Vec<f32>,
-    // Classifier
     fc1_w: Vec<f32>, fc1_b: Vec<f32>,
     fc2_w: Vec<f32>, fc2_b: Vec<f32>,
 }
@@ -117,11 +105,9 @@ impl ModelWeights {
         let data = std::fs::read_to_string(path)?;
         let json: serde_json::Value = serde_json::from_str(&data)?;
         let w = &json["weights"];
-
         let get = |key: &str| -> Vec<f32> {
             w[key].as_array().unwrap().iter().map(|v| v.as_f64().unwrap() as f32).collect()
         };
-
         Ok(Self {
             conv1_w: get("features.0.weight"), conv1_b: get("features.0.bias"),
             bn1_gamma: get("features.1.weight"), bn1_beta: get("features.1.bias"),
@@ -138,26 +124,21 @@ impl ModelWeights {
     }
 
     fn forward(&self, input: &[f32]) -> Vec<f32> {
-        // input: (168, 100) flattened = 16800 values
-        let seq = WINDOW; // 100
-
-        // Conv1: 168→128, k=7, pad=3 → BN → ReLU → MaxPool(2)
+        let seq = WINDOW;
         let mut buf1 = vec![0.0f32; 128 * seq];
         conv1d(input, &mut buf1, &self.conv1_w, &self.conv1_b, 168, 128, 7, 3, seq);
         batchnorm(&mut buf1, &self.bn1_gamma, &self.bn1_beta, &self.bn1_mean, &self.bn1_var, 128, seq);
         relu(&mut buf1);
         let mut pool1 = vec![0.0f32; 128 * (seq / 2)];
-        let seq1 = maxpool1d(&buf1, &mut pool1, 128, seq); // 50
+        let seq1 = maxpool1d(&buf1, &mut pool1, 128, seq);
 
-        // Conv2: 128→256, k=5, pad=2 → BN → ReLU → MaxPool(2)
         let mut buf2 = vec![0.0f32; 256 * seq1];
         conv1d(&pool1, &mut buf2, &self.conv2_w, &self.conv2_b, 128, 256, 5, 2, seq1);
         batchnorm(&mut buf2, &self.bn2_gamma, &self.bn2_beta, &self.bn2_mean, &self.bn2_var, 256, seq1);
         relu(&mut buf2);
         let mut pool2 = vec![0.0f32; 256 * (seq1 / 2)];
-        let seq2 = maxpool1d(&buf2, &mut pool2, 256, seq1); // 25
+        let seq2 = maxpool1d(&buf2, &mut pool2, 256, seq1);
 
-        // Conv3: 256→128, k=3, pad=1 → BN → ReLU → AdaptiveAvgPool(1)
         let mut buf3 = vec![0.0f32; 128 * seq2];
         conv1d(&pool2, &mut buf3, &self.conv3_w, &self.conv3_b, 256, 128, 3, 1, seq2);
         batchnorm(&mut buf3, &self.bn3_gamma, &self.bn3_beta, &self.bn3_mean, &self.bn3_var, 128, seq2);
@@ -165,20 +146,17 @@ impl ModelWeights {
         let mut pooled = vec![0.0f32; 128];
         adaptive_avg_pool1d(&buf3, &mut pooled, 128, seq2);
 
-        // FC1: 128→64, ReLU
         let mut fc1_out = vec![0.0f32; 64];
         linear(&pooled, &mut fc1_out, &self.fc1_w, &self.fc1_b, 128, 64);
         relu(&mut fc1_out);
 
-        // FC2: 64→4
         let mut logits = vec![0.0f32; 4];
         linear(&fc1_out, &mut logits, &self.fc2_w, &self.fc2_b, 64, 4);
-
         logits
     }
 }
 
-// ── Public classifier ────────────────────────────────────────────────────────
+// ── Public API ───────────────────────────────────────────────────────────────
 
 pub struct DlClassifier {
     model: ModelWeights,
@@ -190,12 +168,13 @@ pub struct DlClassifier {
     feat_std: Vec<f32>,
     last_class: usize,
     last_confidence: f32,
+    vote_history: Vec<[f32; NUM_CLASSES]>,
 }
 
 impl DlClassifier {
     pub fn load(model_dir: &Path) -> anyhow::Result<Self> {
         let weights_path = model_dir.join("csi_light_weights.json");
-        tracing::info!("Loading DL model weights from {}", weights_path.display());
+        tracing::info!("Loading DL model from {}", weights_path.display());
         let model = ModelWeights::load(&weights_path)?;
 
         let baseline = load_npy_f32(&model_dir.join("baseline.npy"))?;
@@ -206,7 +185,8 @@ impl DlClassifier {
         assert_eq!(feat_mean.len(), FEATURES);
         assert_eq!(feat_std.len(), FEATURES);
 
-        tracing::info!("DL classifier ready (pure Rust): {} classes, window={}", CLASSES.len(), WINDOW);
+        tracing::info!("DL classifier ready: {} classes, window={}, vote={}, L2+adaptive",
+                       CLASSES.len(), WINDOW, VOTE_WINDOW);
 
         Ok(Self {
             model,
@@ -218,6 +198,7 @@ impl DlClassifier {
             feat_std,
             last_class: 0,
             last_confidence: 0.0,
+            vote_history: Vec::with_capacity(VOTE_WINDOW),
         })
     }
 
@@ -230,20 +211,31 @@ impl DlClassifier {
         self.frame_count += 1;
         if self.frame_count % SUBSAMPLE != 0 { return None; }
 
-        let mut frame = [0.0f32; FEATURES];
+        // 1. Assemble frame
+        let mut raw_frame = [0.0f32; FEATURES];
         for ni in 0..NUM_NODES {
             let nid = (ni + 1) as u8;
             let off = ni * NUM_SUBCARRIERS;
             if let Some(amps) = self.node_latest.get(&nid) {
-                for s in 0..NUM_SUBCARRIERS {
-                    frame[off + s] = amps[s] - self.baseline[off + s];
-                }
+                for s in 0..NUM_SUBCARRIERS { raw_frame[off + s] = amps[s]; }
             }
+        }
+
+        // 2. L2 normalize (removes AGC artifacts)
+        let l2_norm: f32 = raw_frame.iter().map(|x| x * x).sum::<f32>().sqrt();
+        let mut l2_frame = raw_frame;
+        if l2_norm > 1e-6 {
+            for v in l2_frame.iter_mut() { *v /= l2_norm; }
+        }
+
+        // 3. Subtract baseline
+        let mut frame = [0.0f32; FEATURES];
+        for i in 0..FEATURES {
+            frame[i] = l2_frame[i] - self.baseline[i];
         }
 
         if self.frame_buffer.len() >= WINDOW { self.frame_buffer.remove(0); }
         self.frame_buffer.push(frame);
-
         if self.frame_buffer.len() < WINDOW { return None; }
 
         let sc = self.frame_count / SUBSAMPLE;
@@ -251,7 +243,7 @@ impl DlClassifier {
             return Some((CLASSES[self.last_class], self.last_confidence));
         }
 
-        // Build input (features, seq_len) = (168, 100), normalized
+        // 4. Build input with global normalization (features, seq_len) = (168, 40)
         let mut input = vec![0.0f32; FEATURES * WINDOW];
         for f in 0..FEATURES {
             let std_val = self.feat_std[f];
@@ -265,11 +257,47 @@ impl DlClassifier {
         let logits = self.model.forward(&input);
         let probs = softmax(&logits);
 
-        if let Some((idx, &conf)) = probs.iter().enumerate()
-            .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
-        {
-            self.last_class = idx;
-            self.last_confidence = conf;
+        // 5. Temporal voting: average probabilities over last VOTE_WINDOW predictions
+        let mut prob_arr = [0.0f32; NUM_CLASSES];
+        for (i, &p) in probs.iter().enumerate().take(NUM_CLASSES) {
+            prob_arr[i] = p;
+        }
+        if self.vote_history.len() >= VOTE_WINDOW {
+            self.vote_history.remove(0);
+        }
+        self.vote_history.push(prob_arr);
+
+        // Average probabilities
+        let mut avg_probs = [0.0f32; NUM_CLASSES];
+        let n_votes = self.vote_history.len() as f32;
+        for vote in &self.vote_history {
+            for c in 0..NUM_CLASSES {
+                avg_probs[c] += vote[c];
+            }
+        }
+        for c in 0..NUM_CLASSES {
+            avg_probs[c] /= n_votes;
+        }
+
+        // Pick class from averaged probabilities
+        let mut best_class = 0;
+        let mut best_conf = avg_probs[0];
+        for c in 1..NUM_CLASSES {
+            if avg_probs[c] > best_conf {
+                best_conf = avg_probs[c];
+                best_class = c;
+            }
+        }
+
+        self.last_class = best_class;
+        self.last_confidence = best_conf;
+
+        // 6. Adaptive baseline: slowly update when empty detected
+        if best_class == 0 && best_conf > BASELINE_CONFIDENCE_THRESHOLD {
+            for i in 0..FEATURES {
+                let raw_l2 = l2_frame[i];
+                self.baseline[i] += BASELINE_ADAPT_RATE * (raw_l2 - self.baseline[i]);
+            }
         }
 
         Some((CLASSES[self.last_class], self.last_confidence))
