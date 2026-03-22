@@ -13,7 +13,7 @@ NUM_SUBCARRIERS = 56
 SUBSAMPLE_RATE = 5
 WINDOW_SIZE = 40          # ~40 frames at ~22Hz ≈ 1.8 sec
 WINDOW_STRIDE = 10        # ~0.45 sec stride
-TRIM_LYING_SECS = 240
+TRIM_LYING_V3_SECS = 240   # trim bad end of v3 lying
 VAL_RATIO = 0.3           # last 30% of each recording → val
 
 CLASSES = {"empty": 0, "lying": 1, "walking": 2, "sitting": 3}
@@ -72,9 +72,14 @@ def main():
 
     recordings = {
         "empty": [DATA_DIR / "train_empty_v3.jsonl"],
-        "lying": [DATA_DIR / "train_lying_v3.jsonl"],
+        "lying": [DATA_DIR / "train_lying_v3.jsonl", DATA_DIR / "train_lying_v4.jsonl"],
         "walking": [DATA_DIR / "train_walking_v3.jsonl", DATA_DIR / "train_walking_v4.jsonl"],
         "sitting": [DATA_DIR / "train_sitting_v3.jsonl", DATA_DIR / "train_sitting_v4.jsonl"],
+    }
+
+    # Per-file trimming (seconds from end)
+    trim_map = {
+        str(DATA_DIR / "train_lying_v3.jsonl"): int(TRIM_LYING_V3_SECS * 109),
     }
 
     for name, paths in recordings.items():
@@ -86,17 +91,19 @@ def main():
     print("=== Parsing recordings ===")
     raw_data = {}
     for name, paths in recordings.items():
-        parts = [parse_recording(str(p)) for p in paths]
+        parts = []
+        for p in paths:
+            part = parse_recording(str(p))
+            trim = trim_map.get(str(p), 0)
+            if trim > 0 and part.shape[0] > trim:
+                orig = part.shape[0]
+                part = part[:-trim]
+                print(f"    Trimmed {p.name}: {orig} -> {part.shape[0]}")
+            parts.append(part)
         raw_data[name] = np.concatenate(parts, axis=0)
         if len(parts) > 1:
             print(f"  {name}: merged {len(parts)} files -> {raw_data[name].shape[0]} frames")
 
-    # 2. Trim lying
-    lying_trim = int(TRIM_LYING_SECS * 109)
-    if raw_data["lying"].shape[0] > lying_trim:
-        orig = raw_data["lying"].shape[0]
-        raw_data["lying"] = raw_data["lying"][:-lying_trim]
-        print(f"  Trimmed lying: {orig} -> {raw_data['lying'].shape[0]}")
 
     # 3. Subsample
     print(f"\n=== Subsampling (1/{SUBSAMPLE_RATE}) ===")
