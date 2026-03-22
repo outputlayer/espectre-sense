@@ -1,7 +1,7 @@
 //! Pure-Rust CNN inference for WiFi CSI room presence classification.
 //!
-//! v4: L2 normalization + baseline subtraction + global normalization +
-//!     adaptive baseline + temporal voting (smooth predictions).
+//! v5: L2 normalization + baseline subtraction + global normalization +
+//!     adaptive baseline + temporal voting + hysteresis (sitting↔walking).
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -17,7 +17,10 @@ const NUM_CLASSES: usize = 4;
 
 const BASELINE_ADAPT_RATE: f32 = 0.005;
 const BASELINE_CONFIDENCE_THRESHOLD: f32 = 0.85;
-const VOTE_WINDOW: usize = 5; // smooth over last 5 predictions
+const VOTE_WINDOW: usize = 7; // increased from 5 for smoother predictions
+
+// Hysteresis: higher confidence needed for confusing transitions
+const TRANSITION_CONFIDENCE: f32 = 0.55;
 
 // ── NN ops ───────────────────────────────────────────────────────────────────
 
@@ -169,6 +172,7 @@ pub struct DlClassifier {
     last_class: usize,
     last_confidence: f32,
     vote_history: Vec<[f32; NUM_CLASSES]>,
+    prev_reported_class: usize,
 }
 
 impl DlClassifier {
@@ -185,8 +189,8 @@ impl DlClassifier {
         assert_eq!(feat_mean.len(), FEATURES);
         assert_eq!(feat_std.len(), FEATURES);
 
-        tracing::info!("DL classifier ready: {} classes, window={}, vote={}, L2+adaptive",
-                       CLASSES.len(), WINDOW, VOTE_WINDOW);
+        tracing::info!("DL classifier ready: {} classes, window={}, vote={}, hysteresis={}",
+                       CLASSES.len(), WINDOW, VOTE_WINDOW, TRANSITION_CONFIDENCE);
 
         Ok(Self {
             model,
@@ -199,6 +203,7 @@ impl DlClassifier {
             last_class: 0,
             last_confidence: 0.0,
             vote_history: Vec::with_capacity(VOTE_WINDOW),
+            prev_reported_class: 0,
         })
     }
 
@@ -267,7 +272,6 @@ impl DlClassifier {
         }
         self.vote_history.push(prob_arr);
 
-        // Average probabilities
         let mut avg_probs = [0.0f32; NUM_CLASSES];
         let n_votes = self.vote_history.len() as f32;
         for vote in &self.vote_history {
@@ -289,11 +293,28 @@ impl DlClassifier {
             }
         }
 
-        self.last_class = best_class;
-        self.last_confidence = best_conf;
+        // 6. Hysteresis: require higher confidence for sitting↔walking transitions
+        let (final_class, final_conf) = if self.prev_reported_class != best_class {
+            let is_confusing_transition = matches!(
+                (self.prev_reported_class, best_class),
+                (2, 3) | (3, 2) // walking(2) ↔ sitting(3)
+            );
+            if is_confusing_transition && best_conf < TRANSITION_CONFIDENCE {
+                // Not confident enough — stay in current class
+                (self.prev_reported_class, avg_probs[self.prev_reported_class])
+            } else {
+                (best_class, best_conf)
+            }
+        } else {
+            (best_class, best_conf)
+        };
 
-        // 6. Adaptive baseline: slowly update when empty detected
-        if best_class == 0 && best_conf > BASELINE_CONFIDENCE_THRESHOLD {
+        self.prev_reported_class = final_class;
+        self.last_class = final_class;
+        self.last_confidence = final_conf;
+
+        // 7. Adaptive baseline: slowly update when empty detected
+        if final_class == 0 && final_conf > BASELINE_CONFIDENCE_THRESHOLD {
             for i in 0..FEATURES {
                 let raw_l2 = l2_frame[i];
                 self.baseline[i] += BASELINE_ADAPT_RATE * (raw_l2 - self.baseline[i]);

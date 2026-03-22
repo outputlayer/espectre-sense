@@ -993,7 +993,7 @@ fn adaptive_override(state: &AppStateInner, features: &FeatureInfo, classificati
             &serde_json::json!({
                 "variance": features.variance,
                 "motion_band_power": features.motion_band_power,
-                "breathing_band_power": features.breathing_band_power,
+                
                 "spectral_power": features.spectral_power,
                 "dominant_freq_hz": features.dominant_freq_hz,
                 "change_points": features.change_points,
@@ -1339,7 +1339,7 @@ async fn windows_wifi_task(state: SharedState, tick_ms: u64) {
                 first_rssi, motion_score, breathing_rate_hz,
                 feat_variance.min(1.0), &sub_variances,
             ),
-            vital_signs: Some(vitals),
+            vital_signs: None,
             enhanced_motion,
             enhanced_breathing,
             posture: posture_str,
@@ -1349,7 +1349,7 @@ async fn windows_wifi_task(state: SharedState, tick_ms: u64) {
             pose_keypoints: None,
             model_status: None,
             persons: None,
-            estimated_persons: if est_persons > 0 { Some(est_persons) } else { None },
+            estimated_persons: None,
         };
 
         // Populate persons from the sensing update.
@@ -1469,7 +1469,7 @@ async fn windows_wifi_fallback_tick(state: &SharedState, seq: u32) {
             rssi_dbm, motion_score, breathing_rate_hz,
             feat_variance.min(1.0), &sub_variances,
         ),
-        vital_signs: Some(vitals),
+        vital_signs: None,
         enhanced_motion: None,
         enhanced_breathing: None,
         posture: None,
@@ -1479,7 +1479,7 @@ async fn windows_wifi_fallback_tick(state: &SharedState, seq: u32) {
         pose_keypoints: None,
         model_status: None,
         persons: None,
-        estimated_persons: if est_persons > 0 { Some(est_persons) } else { None },
+        estimated_persons: None,
     };
 
     let persons = derive_pose_from_sensing(&update);
@@ -1685,7 +1685,6 @@ async fn handle_ws_pose_client(mut socket: WebSocket, state: SharedState) {
                                             "tick": sensing.tick,
                                             "signal_strength": sensing.features.mean_rssi,
                                             "motion_band_power": sensing.features.motion_band_power,
-                                            "breathing_band_power": sensing.features.breathing_band_power,
                                             "estimated_persons": persons.len(),
                                         }
                                     }
@@ -2999,7 +2998,7 @@ async fn udp_receiver_task(state: SharedState, udp_port: u16) {
                             features.mean_rssi, motion_score, breathing_rate_hz,
                             features.variance.min(1.0), &sub_variances,
                         ),
-                        vital_signs: Some(vitals),
+                        vital_signs: None,
                         enhanced_motion: None,
                         enhanced_breathing: None,
                         posture: None,
@@ -3009,7 +3008,7 @@ async fn udp_receiver_task(state: SharedState, udp_port: u16) {
                         pose_keypoints: None,
                         model_status: None,
                         persons: None,
-                        estimated_persons: if est_persons > 0 { Some(est_persons) } else { None },
+                        estimated_persons: None,
                     };
 
                     let persons = derive_pose_from_sensing(&update);
@@ -3127,7 +3126,7 @@ async fn simulated_data_task(state: SharedState, tick_ms: u64) {
                 features.mean_rssi, motion_score, breathing_rate_hz,
                 features.variance.min(1.0), &sub_variances,
             ),
-            vital_signs: Some(vitals),
+            vital_signs: None,
             enhanced_motion: None,
             enhanced_breathing: None,
             posture: None,
@@ -3147,7 +3146,7 @@ async fn simulated_data_task(state: SharedState, tick_ms: u64) {
                 None
             },
             persons: None,
-            estimated_persons: if est_persons > 0 { Some(est_persons) } else { None },
+            estimated_persons: None,
         };
 
         // Populate persons from the sensing update.

@@ -3,221 +3,246 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WiFi Radar — Room Monitor</title>
+<title>WiFi Radar — Patient Monitor</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 * { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #232a2e; color: #d3c6aa; font-family: 'Inter', -apple-system, sans-serif; overflow-y: auto; min-height: 100vh; }
 
-body { background: #232a2e; color: #d3c6aa; font-family: 'Inter', -apple-system, sans-serif; overflow: hidden; height: 100vh; }
+.app { max-width: 960px; margin: 0 auto; padding: 16px 20px; }
 
-.layout {
-  display: grid;
-  grid-template-columns: 1fr 340px;
-  grid-template-rows: 50px 1fr;
-  height: 100vh; gap: 0;
-}
-
+/* Header */
 .header {
-  grid-column: 1 / -1;
   display: flex; align-items: center; justify-content: space-between;
-  padding: 0 20px;
-  background: #2d353b;
-  border-bottom: 1px solid #3d484d;
+  padding: 10px 16px; margin-bottom: 16px;
+  background: #2d353b; border-radius: 12px;
+  border: 1px solid #343f44;
 }
 .logo { display: flex; align-items: center; gap: 10px; }
-.logo-icon { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, #7fbbb3, #a7c080); display: flex; align-items: center; justify-content: center; font-size: 13px; color: #232a2e; font-weight: 700; }
-.logo-text { font-size: 15px; font-weight: 600; color: #d3c6aa; letter-spacing: 0.3px; }
-.logo-sub { font-size: 11px; color: #7a8478; font-weight: 400; margin-left: 6px; }
-.header-right { display: flex; align-items: center; gap: 16px; }
-.header-badge { display: flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 4px; background: rgba(167,192,128,0.08); border: 1px solid rgba(167,192,128,0.15); }
-.header-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: #a7c080; animation: pulse-dot 2s ease-in-out infinite; }
-.header-badge .text { font-size: 10px; font-weight: 500; color: #a7c080; font-family: 'JetBrains Mono'; }
-@keyframes pulse-dot { 0%,100%{opacity:1}50%{opacity:0.4} }
-.ws-dot { width: 7px; height: 7px; border-radius: 50%; }
-.ws-dot.live { background: #a7c080; box-shadow: 0 0 6px #a7c08066; }
-.ws-dot.off { background: #e67e80; box-shadow: 0 0 6px #e67e8066; }
-.fps-label { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #7a8478; }
+.logo-icon { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, #7fbbb3, #a7c080); display: flex; align-items: center; justify-content: center; font-size: 14px; color: #232a2e; font-weight: 700; }
+.logo-text { font-size: 16px; font-weight: 600; }
+.logo-sub { font-size: 12px; color: #859289; margin-left: 4px; }
+.header-right { display: flex; align-items: center; gap: 14px; }
+.badge { display: flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 4px; background: rgba(167,192,128,0.08); border: 1px solid rgba(167,192,128,0.15); }
+.badge .dot { width: 6px; height: 6px; border-radius: 50%; background: #a7c080; animation: pulse 2s ease-in-out infinite; }
+.badge .text { font-size: 10px; font-weight: 500; color: #a7c080; font-family: 'JetBrains Mono'; }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+.ws-status { display: flex; align-items: center; gap: 6px; }
+.ws-dot { width: 8px; height: 8px; border-radius: 50%; }
+.ws-dot.live { background: #a7c080; box-shadow: 0 0 8px #a7c08066; }
+.ws-dot.off { background: #e67e80; box-shadow: 0 0 8px #e67e8066; }
 .ws-label { font-size: 12px; font-weight: 500; }
+.fps-label { font-family: 'JetBrains Mono'; font-size: 11px; color: #7a8478; }
 
-.canvas-area { position: relative; background: #232a2e; overflow: hidden; }
-#roomCanvas { width: 100%; height: 100%; display: block; }
-
-.sidebar {
-  background: #2d353b;
-  border-left: 1px solid #3d484d;
-  display: flex; flex-direction: column; overflow-y: auto;
+/* Status Card — big hero */
+.status-card {
+  background: #2d353b; border-radius: 16px; padding: 32px;
+  margin-bottom: 16px; text-align: center;
+  border: 1px solid #343f44;
+  transition: border-color 0.5s;
 }
-
-.card { padding: 14px 16px; border-bottom: 1px solid #343f44; }
-.card-title { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; color: #7a8478; margin-bottom: 10px; }
-
-/* Status card — hero */
-.status-hero {
-  display: flex; align-items: stretch; gap: 14px; margin-bottom: 12px;
-}
-.status-ring-wrap { position: relative; }
-.status-ring {
-  width: 56px; height: 56px; border-radius: 14px;
+.status-icon {
+  width: 80px; height: 80px; border-radius: 20px; margin: 0 auto 16px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 22px; transition: all 0.5s ease;
-  position: relative;
+  font-size: 36px; transition: all 0.5s;
   border: 2px solid transparent;
 }
-.status-ring.absent { background: rgba(127,187,179,0.06); color: #7fbbb3; border-color: rgba(127,187,179,0.2); }
-.status-ring.lying_still { background: rgba(214,153,182,0.08); color: #d699b6; border-color: rgba(214,153,182,0.25); }
-.status-ring.present_still { background: rgba(167,192,128,0.08); color: #a7c080; border-color: rgba(167,192,128,0.25); }
-.status-ring.present_moving { background: rgba(219,188,127,0.08); color: #dbbc7f; border-color: rgba(219,188,127,0.25); }
-.status-ring.active { background: rgba(230,126,128,0.08); color: #e67e80; border-color: rgba(230,126,128,0.25); }
-
-.status-info { flex: 1; display: flex; flex-direction: column; justify-content: center; }
-.status-label {
-  font-size: 19px; font-weight: 600; transition: color 0.4s; line-height: 1.2;
+.status-icon.absent   { background: rgba(127,187,179,0.08); color: #7fbbb3; border-color: rgba(127,187,179,0.25); }
+.status-icon.lying    { background: rgba(214,153,182,0.08); color: #d699b6; border-color: rgba(214,153,182,0.25); }
+.status-icon.sitting  { background: rgba(167,192,128,0.08); color: #a7c080; border-color: rgba(167,192,128,0.25); }
+.status-icon.walking  { background: rgba(219,188,127,0.08); color: #dbbc7f; border-color: rgba(219,188,127,0.25); }
+.status-name {
+  font-size: 28px; font-weight: 700; margin-bottom: 8px;
+  transition: color 0.4s;
 }
-.status-label.absent { color: #7fbbb3; }
-.status-label.lying_still { color: #d699b6; }
-.status-label.present_still { color: #a7c080; }
-.status-label.present_moving { color: #dbbc7f; }
-.status-label.active { color: #e67e80; }
-.status-sub { font-size: 11px; color: #859289; margin-top: 2px; }
+.status-name.absent  { color: #7fbbb3; }
+.status-name.lying   { color: #d699b6; }
+.status-name.sitting { color: #a7c080; }
+.status-name.walking { color: #dbbc7f; }
 
-/* Confidence meter */
-.conf-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.conf-pct { font-family: 'JetBrains Mono'; font-size: 12px; font-weight: 600; min-width: 42px; text-align: right; transition: color 0.4s; }
-.conf-track { flex: 1; height: 6px; background: #343f44; border-radius: 3px; overflow: hidden; }
-.conf-fill { height: 100%; border-radius: 3px; transition: width 0.4s, background 0.4s; }
+.conf-bar { max-width: 320px; margin: 0 auto 12px; display: flex; align-items: center; gap: 10px; }
+.conf-track { flex: 1; height: 8px; background: #343f44; border-radius: 4px; overflow: hidden; }
+.conf-fill { height: 100%; border-radius: 4px; transition: width 0.4s, background 0.4s; }
+.conf-pct { font-family: 'JetBrains Mono'; font-size: 14px; font-weight: 600; min-width: 42px; }
+.status-duration { font-size: 13px; color: #859289; }
+.status-duration span { color: #d3c6aa; font-weight: 500; }
 
-/* Person count */
-.persons-row { display: flex; align-items: center; gap: 10px; padding-top: 8px; border-top: 1px solid #343f44; }
-.persons-indicator { display: flex; gap: 5px; }
-.person-pip { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid #475258; transition: all 0.3s; }
-.person-pip.on { border-color: transparent; }
-.persons-text { font-size: 12px; color: #859289; font-weight: 500; }
+/* Alert banner */
+.alert-banner {
+  display: none; margin-bottom: 16px; padding: 10px 16px;
+  background: rgba(230,126,128,0.08); border: 1px solid rgba(230,126,128,0.2);
+  border-radius: 10px; color: #e67e80; font-size: 13px; font-weight: 500;
+  text-align: center;
+}
+.alert-banner.visible { display: block; }
 
-/* Node scores */
-.node-row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
-.node-row:last-child { margin-bottom: 0; }
-.node-id { width: 22px; height: 22px; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono'; font-size: 10px; font-weight: 600; color: #232a2e; }
+/* Activity stats */
+.stats-row {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+  margin-bottom: 16px;
+}
+.stat-card {
+  background: #2d353b; border-radius: 12px; padding: 14px 12px;
+  text-align: center; border: 1px solid #343f44;
+  transition: border-color 0.3s;
+}
+.stat-card.active { border-color: rgba(211,198,170,0.2); }
+.stat-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+.stat-label.absent  { color: #7fbbb3; }
+.stat-label.lying   { color: #d699b6; }
+.stat-label.sitting { color: #a7c080; }
+.stat-label.walking { color: #dbbc7f; }
+.stat-time { font-family: 'JetBrains Mono'; font-size: 18px; font-weight: 600; color: #d3c6aa; margin-bottom: 6px; }
+.stat-bar-bg { height: 4px; background: #343f44; border-radius: 2px; overflow: hidden; }
+.stat-bar-fill { height: 100%; border-radius: 2px; transition: width 0.5s; }
+.stat-bar-fill.absent  { background: #7fbbb3; }
+.stat-bar-fill.lying   { background: #d699b6; }
+.stat-bar-fill.sitting { background: #a7c080; }
+.stat-bar-fill.walking { background: #dbbc7f; }
+
+/* Panels */
+.panel {
+  background: #2d353b; border-radius: 12px; padding: 14px 16px;
+  margin-bottom: 12px; border: 1px solid #343f44;
+}
+.panel-title {
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 1px; color: #7a8478; margin-bottom: 10px;
+}
+
+/* Timeline */
+#timelineCanvas { width: 100%; height: 80px; display: block; border-radius: 8px; background: #343f44; }
+
+/* Motion sparkline */
+#motionCanvas { width: 100%; height: 50px; display: block; border-radius: 8px; background: #343f44; }
+
+/* Nodes */
+.nodes-row { display: flex; gap: 12px; }
+.node-item { flex: 1; display: flex; align-items: center; gap: 8px; }
+.node-id {
+  width: 24px; height: 24px; border-radius: 6px; display: flex;
+  align-items: center; justify-content: center;
+  font-family: 'JetBrains Mono'; font-size: 10px; font-weight: 600; color: #232a2e;
+}
 .node-id.n1 { background: #7fbbb3; }
 .node-id.n2 { background: #d699b6; }
 .node-id.n3 { background: #dbbc7f; }
-.node-bar-bg { flex: 1; height: 5px; background: #343f44; border-radius: 3px; overflow: hidden; }
+.node-bar-bg { flex: 1; height: 6px; background: #343f44; border-radius: 3px; overflow: hidden; }
 .node-bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
 .node-bar-fill.n1 { background: #7fbbb3; }
 .node-bar-fill.n2 { background: #d699b6; }
 .node-bar-fill.n3 { background: #dbbc7f; }
-.node-val { font-family: 'JetBrains Mono'; font-size: 11px; color: #859289; width: 36px; text-align: right; }
+.node-val { font-family: 'JetBrains Mono'; font-size: 11px; color: #859289; width: 30px; text-align: right; }
 
-/* Timeline & Specs */
-#timelineCanvas { width: 100%; height: 70px; display: block; border-radius: 6px; background: #343f44; }
-.specs { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; flex: 1; min-height: 0; }
-.spec-panel { position: relative; overflow: hidden; min-height: 60px; }
-.spec-label { position: absolute; top: 3px; left: 6px; font-size: 9px; color: rgba(211,198,170,0.3); z-index: 1; font-family: 'JetBrains Mono'; }
-.spec-panel canvas { width: 100%; height: 100%; display: block; }
-
-.card-title.expandable { cursor: pointer; display: flex; align-items: center; gap: 6px; }
-.card-title.expandable::after { content: '\u2922'; font-size: 12px; opacity: 0.3; }
-.card-title.expandable:hover { color: #d3c6aa; }
-.card-title.expandable:hover::after { opacity: 0.7; }
-
-.fullscreen-overlay {
-  display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-  background: #232a2e; z-index: 100; flex-direction: column; padding: 16px;
+/* Recent changes log */
+.changes-list { max-height: 120px; overflow-y: auto; }
+.change-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 0; border-bottom: 1px solid #343f4444;
+  font-size: 12px;
 }
-.fullscreen-overlay.active { display: flex; }
-.fullscreen-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-.fullscreen-title { font-size: 14px; font-weight: 600; color: #d3c6aa; }
-.fullscreen-close {
-  width: 30px; height: 30px; border-radius: 6px; background: #343f44;
-  border: 1px solid #3d484d; color: #859289; font-size: 16px;
-  cursor: pointer; display: flex; align-items: center; justify-content: center;
-}
-.fullscreen-close:hover { background: #3d484d; color: #d3c6aa; }
-.fullscreen-body { flex: 1; min-height: 0; display: flex; overflow: hidden; }
-.fullscreen-body canvas { width: 100%; height: 100%; }
-.fullscreen-body .specs { width: 100%; height: 100%; display: grid; grid-template-columns: 1fr; grid-template-rows: 1fr 1fr 1fr; gap: 4px; }
-.fullscreen-body .spec-panel { position: relative; min-height: 0; overflow: hidden; }
-.fullscreen-body .spec-panel canvas { width: 100%; height: 100%; display: block; }
-.fullscreen-body .spec-label { font-size: 12px; }
+.change-item:last-child { border-bottom: none; }
+.change-time { font-family: 'JetBrains Mono'; font-size: 11px; color: #7a8478; min-width: 50px; }
+.change-from, .change-to { font-weight: 500; }
+.change-arrow { color: #7a8478; }
+.changes-list::-webkit-scrollbar { width: 3px; }
+.changes-list::-webkit-scrollbar-track { background: transparent; }
+.changes-list::-webkit-scrollbar-thumb { background: #475258; border-radius: 2px; }
 
-.sidebar::-webkit-scrollbar { width: 3px; }
-.sidebar::-webkit-scrollbar-track { background: transparent; }
-.sidebar::-webkit-scrollbar-thumb { background: #475258; border-radius: 2px; }
+/* Bottom grid */
+.bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 700px) {
+  .stats-row { grid-template-columns: repeat(2, 1fr); }
+  .bottom-grid { grid-template-columns: 1fr; }
+}
 </style>
 </head>
 <body>
-<div class="layout">
+<div class="app">
+  <!-- Header -->
   <div class="header">
     <div class="logo">
       <div class="logo-icon">W</div>
       <span class="logo-text">WiFi Radar</span>
-      <span class="logo-sub">Room Monitor</span>
+      <span class="logo-sub">Patient Monitor</span>
     </div>
     <div class="header-right">
-      <div class="header-badge">
-        <div class="dot"></div>
-        <span class="text">CSINetLight</span>
-      </div>
-      <span class="fps-label" id="fps">— fps</span>
-      <div style="display:flex;align-items:center;gap:6px">
+      <div class="badge"><div class="dot"></div><span class="text">CSINetLight</span></div>
+      <span class="fps-label" id="fps">-- fps</span>
+      <div class="ws-status">
         <span class="ws-dot off" id="wsDot"></span>
         <span class="ws-label" id="wsLabel">Connecting</span>
       </div>
     </div>
   </div>
-  <div class="canvas-area"><canvas id="roomCanvas"></canvas></div>
-  <div class="sidebar">
-    <div class="card">
-      <div class="card-title">Classification</div>
-      <div class="status-hero">
-        <div class="status-ring-wrap">
-          <div class="status-ring absent" id="statusRing">?</div>
-        </div>
-        <div class="status-info">
-          <div class="status-label absent" id="statusLabel">Initializing</div>
-          <div class="status-sub" id="statusSub">Waiting for data...</div>
-        </div>
+
+  <!-- Alert -->
+  <div class="alert-banner" id="alertBanner"></div>
+
+  <!-- Big status -->
+  <div class="status-card" id="statusCard">
+    <div class="status-icon absent" id="statusIcon">--</div>
+    <div class="status-name absent" id="statusName">Initializing</div>
+    <div class="conf-bar">
+      <div class="conf-track"><div class="conf-fill" id="confFill" style="width:0;background:#7fbbb3"></div></div>
+      <span class="conf-pct" id="confPct" style="color:#7fbbb3">0%</span>
+    </div>
+    <div class="status-duration" id="statusDuration">Waiting for data...</div>
+  </div>
+
+  <!-- Activity stats -->
+  <div class="stats-row">
+    <div class="stat-card" id="statEmpty">
+      <div class="stat-label absent">Empty</div>
+      <div class="stat-time" id="timeEmpty">0:00</div>
+      <div class="stat-bar-bg"><div class="stat-bar-fill absent" id="barEmpty" style="width:0"></div></div>
+    </div>
+    <div class="stat-card" id="statLying">
+      <div class="stat-label lying">Lying</div>
+      <div class="stat-time" id="timeLying">0:00</div>
+      <div class="stat-bar-bg"><div class="stat-bar-fill lying" id="barLying" style="width:0"></div></div>
+    </div>
+    <div class="stat-card" id="statSitting">
+      <div class="stat-label sitting">Sitting</div>
+      <div class="stat-time" id="timeSitting">0:00</div>
+      <div class="stat-bar-bg"><div class="stat-bar-fill sitting" id="barSitting" style="width:0"></div></div>
+    </div>
+    <div class="stat-card" id="statWalking">
+      <div class="stat-label walking">Walking</div>
+      <div class="stat-time" id="timeWalking">0:00</div>
+      <div class="stat-bar-bg"><div class="stat-bar-fill walking" id="barWalking" style="width:0"></div></div>
+    </div>
+  </div>
+
+  <!-- Timeline -->
+  <div class="panel">
+    <div class="panel-title">Activity Timeline</div>
+    <canvas id="timelineCanvas"></canvas>
+  </div>
+
+  <!-- Bottom: motion + nodes + changes -->
+  <div class="bottom-grid">
+    <div>
+      <div class="panel">
+        <div class="panel-title">Motion Energy</div>
+        <canvas id="motionCanvas"></canvas>
       </div>
-      <div class="conf-row">
-        <span class="conf-pct" id="confPct" style="color:#7fbbb3">0%</span>
-        <div class="conf-track"><div class="conf-fill" id="confFill" style="width:0;background:#7fbbb3"></div></div>
-      </div>
-      <div class="persons-row">
-        <div class="persons-indicator" id="personsDots">
-          <div class="person-pip"></div>
-          <div class="person-pip"></div>
-          <div class="person-pip"></div>
+      <div class="panel">
+        <div class="panel-title">Sensor Nodes</div>
+        <div class="nodes-row">
+          <div class="node-item"><div class="node-id n1">1</div><div class="node-bar-bg"><div class="node-bar-fill n1" id="nb1" style="width:0"></div></div><span class="node-val" id="nv1">0.0</span></div>
+          <div class="node-item"><div class="node-id n2">2</div><div class="node-bar-bg"><div class="node-bar-fill n2" id="nb2" style="width:0"></div></div><span class="node-val" id="nv2">0.0</span></div>
+          <div class="node-item"><div class="node-id n3">3</div><div class="node-bar-bg"><div class="node-bar-fill n3" id="nb3" style="width:0"></div></div><span class="node-val" id="nv3">0.0</span></div>
         </div>
-        <span class="persons-text" id="personsText">No persons</span>
       </div>
     </div>
-    <div class="card">
-      <div class="card-title">Node Activity</div>
-      <div id="nodeScores">
-        <div class="node-row"><div class="node-id n1">1</div><div class="node-bar-bg"><div class="node-bar-fill n1" id="nb1" style="width:0"></div></div><div class="node-val" id="nv1">0.0</div></div>
-        <div class="node-row"><div class="node-id n2">2</div><div class="node-bar-bg"><div class="node-bar-fill n2" id="nb2" style="width:0"></div></div><div class="node-val" id="nv2">0.0</div></div>
-        <div class="node-row"><div class="node-id n3">3</div><div class="node-bar-bg"><div class="node-bar-fill n3" id="nb3" style="width:0"></div></div><div class="node-val" id="nv3">0.0</div></div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-title expandable" onclick="openFullscreen('timeline')">Activity Timeline</div>
-      <canvas id="timelineCanvas"></canvas>
-    </div>
-    <div class="card" style="flex:1;min-height:0;padding:8px;display:flex;flex-direction:column">
-      <div class="card-title expandable" onclick="openFullscreen('specs')" style="margin-bottom:6px">CSI Spectrograms</div>
-      <div class="specs">
-        <div class="spec-panel"><span class="spec-label">N1</span><canvas id="c1"></canvas></div>
-        <div class="spec-panel"><span class="spec-label">N2</span><canvas id="c2"></canvas></div>
-        <div class="spec-panel"><span class="spec-label">N3</span><canvas id="c3"></canvas></div>
+    <div class="panel">
+      <div class="panel-title">State Changes</div>
+      <div class="changes-list" id="changesList">
+        <div style="color:#7a8478;font-size:12px;padding:8px 0">No changes yet</div>
       </div>
     </div>
   </div>
-</div>
-<div class="fullscreen-overlay" id="fsOverlay">
-  <div class="fullscreen-header">
-    <span class="fullscreen-title" id="fsTitle"></span>
-    <div class="fullscreen-close" onclick="closeFullscreen()">&times;</div>
-  </div>
-  <div class="fullscreen-body" id="fsBody"></div>
 </div>
 
 <script>
@@ -227,358 +252,340 @@ const WS_URL = (() => {
   return 'ws://' + h + ':' + p + '/ws/sensing';
 })();
 
-function heatColor(t) {
-  t = Math.max(0, Math.min(1, t));
-  const stops = [
-    [0.00, 35, 42, 46], [0.10, 45, 55, 58], [0.25, 52, 79, 68],
-    [0.40, 75, 120, 90], [0.50, 131, 192, 146], [0.60, 167, 192, 128],
-    [0.72, 219, 188, 127], [0.85, 220, 140, 100], [1.00, 230, 126, 128],
-  ];
-  for (let i = 0; i < stops.length - 1; i++) {
-    if (t <= stops[i+1][0]) {
-      const f = (t - stops[i][0]) / (stops[i+1][0] - stops[i][0]);
-      return [
-        Math.round(stops[i][1] + f * (stops[i+1][1] - stops[i][1])),
-        Math.round(stops[i][2] + f * (stops[i+1][2] - stops[i][2])),
-        Math.round(stops[i][3] + f * (stops[i+1][3] - stops[i][3]))
-      ];
-    }
-  }
-  return [230, 126, 128];
-}
-
-function spectroColor(t) {
-  t = Math.max(0, Math.min(1, t));
-  if (t < 0.33) { const s=t/0.33; return [Math.round(35+s*10),Math.round(42+s*80),Math.round(46+s*90)]; }
-  if (t < 0.66) { const s=(t-0.33)/0.33; return [Math.round(45+s*122),Math.round(122+s*70),Math.round(136-s*8)]; }
-  const s=(t-0.66)/0.34; return [Math.round(167+s*63),Math.round(192-s*4),Math.round(128)];
-}
-
 const classConfig = {
-  absent:        { fg: '#7fbbb3', label: 'Room Empty',       icon: '—',  tlY: 0.12 },
-  lying_still:   { fg: '#d699b6', label: 'Lying Down',       icon: '\u23E4', tlY: 0.35 },
-  present_still: { fg: '#a7c080', label: 'Present \u2014 Sitting', icon: '\u25CF', tlY: 0.55 },
-  present_moving:{ fg: '#dbbc7f', label: 'Present \u2014 Walking', icon: '\u2192', tlY: 0.75 },
-  active:        { fg: '#e67e80', label: 'Active Motion',    icon: '\u26A1', tlY: 0.92 },
+  absent:  { fg: '#7fbbb3', label: 'Room Empty', icon: '\u2014',  key: 'absent',  statId: 'Empty' },
+  lying_still:  { fg: '#d699b6', label: 'Lying Down', icon: '\u23E4', key: 'lying',   statId: 'Lying' },
+  present_still:{ fg: '#a7c080', label: 'Sitting',    icon: '\u25CF', key: 'sitting', statId: 'Sitting' },
+  present_moving:{fg: '#dbbc7f', label: 'Walking',    icon: '\u2192', key: 'walking', statId: 'Walking' },
+  active:       { fg: '#e67e80', label: 'Active',     icon: '\u26A1', key: 'walking', statId: 'Walking' },
 };
-const nodeColors = ['#7fbbb3', '#d699b6', '#dbbc7f'];
 
-// ── State ──
-const nodePower=[0,0,0], nodeMotion=[0,0,0], nodeMotionSmooth=[0,0,0];
-const prevAmps=[null,null,null];
-const SPEC_W=150, specData=[[],[],[]];
-let lastClassification=null, lastFeatures=null;
-let lastEstPersons=0;
-const CLASS_HISTORY_SIZE=2, classHistory=[];
-let smoothedClass='absent', smoothedConf=0;
-let totalMsgs=0, frameCount=0, lastFpsTime=Date.now();
-const timelineData=[], TIMELINE_MAX=300;
-const ripples=[];
+// State tracking
+let currentClass = 'absent';
+let stateStartTime = Date.now();
+const stateDurations = { absent: 0, lying: 0, sitting: 0, walking: 0 };
+let smoothedConf = 0;
 
-const roomCanvas=document.getElementById('roomCanvas');
-const roomCtx=roomCanvas.getContext('2d');
-const tlCanvas=document.getElementById('timelineCanvas');
-const tlCtx=tlCanvas.getContext('2d');
-const specCanvases=['c1','c2','c3'].map(id=>document.getElementById(id));
-const specCtxs=specCanvases.map(c=>c.getContext('2d'));
+// Motion energy tracking
+const nodeMotion = [0, 0, 0];
+const nodeMotionSmooth = [0, 0, 0];
+const prevAmps = [null, null, null];
+const MOTION_HISTORY_MAX = 200;
+const motionHistory = [];
 
-function resizeAll(){
-  const dpr=devicePixelRatio||1;
-  [roomCanvas,tlCanvas,...specCanvases].forEach(c=>{
-    const r=c.parentElement.getBoundingClientRect();
-    c.width=Math.round(r.width*dpr); c.height=Math.round(r.height*dpr);
+// Timeline
+const TIMELINE_MAX = 400;
+const timelineData = [];
+
+// State changes log
+const stateChanges = [];
+const MAX_CHANGES = 20;
+
+// Alert thresholds (seconds)
+const ALERT_LYING = 4 * 3600;   // 4 hours
+const ALERT_SITTING = 2 * 3600; // 2 hours
+const ALERT_ABSENT = 30 * 60;   // 30 minutes no presence
+
+// FPS tracking
+let frameCount = 0, lastFpsTime = Date.now();
+
+function getStateKey(motionLevel) {
+  const cc = classConfig[motionLevel];
+  return cc ? cc.key : 'absent';
+}
+
+function formatDuration(ms) {
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) return h + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+  return m + ':' + String(s).padStart(2,'0');
+}
+
+function formatTime(ts) {
+  const d = new Date(ts);
+  return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+
+function processMessage(d) {
+  // Node data
+  if (d.nodes && Array.isArray(d.nodes)) {
+    for (const node of d.nodes) {
+      const nid = node.node_id, amps = node.amplitude;
+      if (!amps || nid < 1 || nid > 3) continue;
+      const idx = nid - 1;
+      if (prevAmps[idx]) {
+        const n = Math.min(prevAmps[idx].length, amps.length);
+        let diff = 0;
+        for (let i = 0; i < n; i++) diff += (amps[i] - prevAmps[idx][i]) ** 2;
+        const raw = diff / (n || 1);
+        nodeMotion[idx] = nodeMotion[idx] * 0.6 + raw * 0.4;
+        if (raw > nodeMotionSmooth[idx]) nodeMotionSmooth[idx] = nodeMotionSmooth[idx] * 0.5 + raw * 0.5;
+        else nodeMotionSmooth[idx] = nodeMotionSmooth[idx] * 0.4 + raw * 0.6;
+      }
+      prevAmps[idx] = amps.slice();
+    }
+    // Overall motion energy
+    const avgMotion = (nodeMotionSmooth[0] + nodeMotionSmooth[1] + nodeMotionSmooth[2]) / 3;
+    motionHistory.push(avgMotion);
+    if (motionHistory.length > MOTION_HISTORY_MAX) motionHistory.shift();
+  }
+
+  // Classification
+  if (d.classification) {
+    const cls = d.classification.motion_level;
+    const conf = d.classification.confidence || 0;
+    smoothedConf = conf;
+
+    const newKey = getStateKey(cls);
+    const oldKey = getStateKey(currentClass);
+
+    if (newKey !== oldKey) {
+      // State changed — accumulate time for previous state
+      const elapsed = Date.now() - stateStartTime;
+      stateDurations[oldKey] += elapsed;
+      stateStartTime = Date.now();
+
+      // Log change
+      stateChanges.unshift({
+        time: Date.now(),
+        from: oldKey,
+        to: newKey,
+      });
+      if (stateChanges.length > MAX_CHANGES) stateChanges.pop();
+    }
+    currentClass = cls;
+
+    // Timeline
+    timelineData.push({ time: Date.now(), cls: cls, conf: conf });
+    if (timelineData.length > TIMELINE_MAX) timelineData.shift();
+  }
+}
+
+function updateStatus() {
+  const cc = classConfig[currentClass] || classConfig.absent;
+  const key = cc.key;
+
+  // Icon
+  const icon = document.getElementById('statusIcon');
+  icon.className = 'status-icon ' + key;
+  icon.textContent = cc.icon;
+
+  // Name
+  const name = document.getElementById('statusName');
+  name.className = 'status-name ' + key;
+  name.textContent = cc.label;
+
+  // Confidence
+  const pct = (smoothedConf * 100).toFixed(0);
+  document.getElementById('confPct').textContent = pct + '%';
+  document.getElementById('confPct').style.color = cc.fg;
+  document.getElementById('confFill').style.width = pct + '%';
+  document.getElementById('confFill').style.background = cc.fg;
+
+  // Duration in current state
+  const elapsed = Date.now() - stateStartTime;
+  const totalForState = stateDurations[key] + elapsed;
+  document.getElementById('statusDuration').innerHTML =
+    'In current state for <span>' + formatDuration(elapsed) + '</span>';
+
+  // Status card border hint
+  document.getElementById('statusCard').style.borderColor = cc.fg + '30';
+
+  // Stat cards
+  const allDurations = { ...stateDurations };
+  allDurations[key] += elapsed;
+  const maxDur = Math.max(1, ...Object.values(allDurations));
+
+  for (const [k, dur] of Object.entries(allDurations)) {
+    const id = k.charAt(0).toUpperCase() + k.slice(1);
+    document.getElementById('time' + id).textContent = formatDuration(dur);
+    document.getElementById('bar' + id).style.width = (dur / maxDur * 100) + '%';
+    const card = document.getElementById('stat' + id);
+    card.className = 'stat-card' + (k === key ? ' active' : '');
+  }
+
+  // Node bars
+  const maxM = Math.max(0.5, ...nodeMotionSmooth);
+  for (let i = 0; i < 3; i++) {
+    document.getElementById('nb' + (i + 1)).style.width = Math.min(100, (nodeMotionSmooth[i] / maxM) * 100) + '%';
+    document.getElementById('nv' + (i + 1)).textContent = nodeMotion[i].toFixed(1);
+  }
+
+  // State changes log
+  const list = document.getElementById('changesList');
+  if (stateChanges.length === 0) {
+    list.innerHTML = '<div style="color:#7a8478;font-size:12px;padding:8px 0">No changes yet</div>';
+  } else {
+    list.innerHTML = stateChanges.map(c => {
+      const fromCfg = classConfig[Object.keys(classConfig).find(k => classConfig[k].key === c.from)] || classConfig.absent;
+      const toCfg = classConfig[Object.keys(classConfig).find(k => classConfig[k].key === c.to)] || classConfig.absent;
+      return `<div class="change-item">
+        <span class="change-time">${formatTime(c.time)}</span>
+        <span class="change-from" style="color:${fromCfg.fg}">${c.from}</span>
+        <span class="change-arrow">\u2192</span>
+        <span class="change-to" style="color:${toCfg.fg}">${c.to}</span>
+      </div>`;
+    }).join('');
+  }
+
+  // Alert check
+  const banner = document.getElementById('alertBanner');
+  const currentDur = Date.now() - stateStartTime;
+  const durSec = currentDur / 1000;
+  if (key === 'lying' && durSec > ALERT_LYING) {
+    banner.textContent = '\u26A0 Extended lying detected (' + formatDuration(currentDur) + '). Consider checking on patient.';
+    banner.className = 'alert-banner visible';
+  } else if (key === 'sitting' && durSec > ALERT_SITTING) {
+    banner.textContent = '\u26A0 Extended sitting detected (' + formatDuration(currentDur) + '). Consider encouraging movement.';
+    banner.className = 'alert-banner visible';
+  } else if (key === 'absent' && durSec > ALERT_ABSENT) {
+    banner.textContent = '\u26A0 No presence detected for ' + formatDuration(currentDur) + '.';
+    banner.className = 'alert-banner visible';
+  } else {
+    banner.className = 'alert-banner';
+  }
+}
+
+// ── Canvas drawing ──
+
+const tlCanvas = document.getElementById('timelineCanvas');
+const tlCtx = tlCanvas.getContext('2d');
+const motCanvas = document.getElementById('motionCanvas');
+const motCtx = motCanvas.getContext('2d');
+
+function resizeCanvases() {
+  const dpr = devicePixelRatio || 1;
+  [tlCanvas, motCanvas].forEach(c => {
+    const r = c.parentElement.getBoundingClientRect();
+    c.width = Math.round(r.width * dpr);
+    c.height = Math.round(r.height * dpr);
   });
 }
-window.addEventListener('resize',resizeAll);
-setTimeout(resizeAll,50); resizeAll();
+window.addEventListener('resize', resizeCanvases);
+setTimeout(resizeCanvases, 50); resizeCanvases();
 
-const nodePos=[{x:0.15,y:0.12},{x:0.85,y:0.12},{x:0.50,y:0.88}];
+const tlClassY = {
+  absent: 0.1, lying_still: 0.3, present_still: 0.55, present_moving: 0.75, active: 0.9
+};
+const tlLabels = [
+  { t: 'empty', y: 0.1 }, { t: 'lying', y: 0.3 },
+  { t: 'sitting', y: 0.55 }, { t: 'walking', y: 0.75 },
+];
 
-function processMessage(d){
-  if(d.nodes&&Array.isArray(d.nodes)){
-    for(const node of d.nodes){
-      const nid=node.node_id, amps=node.amplitude;
-      if(!amps||nid<1||nid>3) continue;
-      const idx=nid-1;
-      const sum=amps.reduce((a,b)=>a+b,0);
-      nodePower[idx]=nodePower[idx]*0.8+(sum/(amps.length||1))*0.2;
-      if(prevAmps[idx]){
-        const n=Math.min(prevAmps[idx].length,amps.length);
-        let diff=0; for(let i=0;i<n;i++) diff+=(amps[i]-prevAmps[idx][i])**2;
-        const raw=diff/(n||1);
-        nodeMotion[idx]=nodeMotion[idx]*0.6+raw*0.4;
-        if(raw>nodeMotionSmooth[idx]) nodeMotionSmooth[idx]=nodeMotionSmooth[idx]*0.5+raw*0.5;
-        else nodeMotionSmooth[idx]=nodeMotionSmooth[idx]*0.4+raw*0.6;
-      }
-      prevAmps[idx]=amps.slice();
-      specData[idx].push(amps.slice());
-      if(specData[idx].length>SPEC_W) specData[idx].shift();
-    }
+function drawTimeline() {
+  const dpr = devicePixelRatio || 1;
+  const W = tlCanvas.width, H = tlCanvas.height;
+  tlCtx.fillStyle = '#343f44'; tlCtx.fillRect(0, 0, W, H);
+  if (timelineData.length < 2) return;
+
+  const colW = W / TIMELINE_MAX;
+
+  // Color bands
+  for (let i = 0; i < timelineData.length; i++) {
+    const d = timelineData[i];
+    const cc = classConfig[d.cls] || classConfig.absent;
+    const x = (TIMELINE_MAX - timelineData.length + i) * colW;
+    const y_ratio = tlClassY[d.cls] || 0.5;
+    tlCtx.fillStyle = cc.fg + '25';
+    tlCtx.fillRect(x, H - y_ratio * H, colW + 0.5, y_ratio * H);
   }
-  if(d.classification){
-    lastClassification=d.classification;
-    const cls=d.classification.motion_level, conf=d.classification.confidence||0;
-    classHistory.push({cls,conf});
-    if(classHistory.length>CLASS_HISTORY_SIZE) classHistory.shift();
-    const votes={};
-    for(const h of classHistory) votes[h.cls]=(votes[h.cls]||0)+h.conf;
-    let best='absent',bestS=0;
-    for(const[k,v] of Object.entries(votes)) if(v>bestS){best=k;bestS=v;}
-    const total=Object.values(votes).reduce((a,b)=>a+b,0);
-    smoothedClass=best; smoothedConf=total>0?bestS/total:0;
-    timelineData.push({time:Date.now(),cls:best,conf:smoothedConf});
-    if(timelineData.length>TIMELINE_MAX) timelineData.shift();
+
+  // Line
+  tlCtx.strokeStyle = '#d3c6aa55'; tlCtx.lineWidth = 1.5 * dpr; tlCtx.beginPath();
+  for (let i = 0; i < timelineData.length; i++) {
+    const d = timelineData[i];
+    const cc = classConfig[d.cls] || classConfig.absent;
+    const x = (TIMELINE_MAX - timelineData.length + i) * colW + colW / 2;
+    const y = H - (tlClassY[d.cls] || 0.5) * H;
+    i === 0 ? tlCtx.moveTo(x, y) : tlCtx.lineTo(x, y);
   }
-  if(d.estimated_persons!==undefined) lastEstPersons=d.estimated_persons;
-  if(d.features) lastFeatures=d.features;
+  tlCtx.stroke();
+
+  // Labels
+  const fs = Math.max(8, Math.min(11, H / 16));
+  tlCtx.fillStyle = '#7a847844'; tlCtx.font = `${fs * dpr}px 'JetBrains Mono'`;
+  tlCtx.textAlign = 'right';
+  tlLabels.forEach(l => tlCtx.fillText(l.t, W - 4 * dpr, H - l.y * H + 3 * dpr));
 }
 
-function drawRoom(){
-  const dpr=devicePixelRatio||1;
-  const W=roomCanvas.width, H=roomCanvas.height;
-  const pad=28*dpr, rw=W-pad*2, rh=H-pad*2;
-  const np=nodePos.map(n=>({px:pad+n.x*rw,py:pad+n.y*rh}));
-  const maxM=Math.max(0.3,...nodeMotionSmooth);
+function drawMotion() {
+  const dpr = devicePixelRatio || 1;
+  const W = motCanvas.width, H = motCanvas.height;
+  motCtx.fillStyle = '#343f44'; motCtx.fillRect(0, 0, W, H);
+  if (motionHistory.length < 2) return;
 
-  roomCtx.fillStyle='#232a2e'; roomCtx.fillRect(0,0,W,H);
+  const maxV = Math.max(0.1, ...motionHistory);
+  const colW = W / MOTION_HISTORY_MAX;
 
-  // Heatmap
-  const step=Math.max(2,Math.round(4*dpr));
-  const imgW=Math.ceil(rw/step), imgH=Math.ceil(rh/step);
-  const off=document.createElement('canvas'); off.width=imgW; off.height=imgH;
-  const oc=off.getContext('2d');
-  const img=oc.createImageData(imgW,imgH); const px=img.data;
-  for(let yi=0;yi<imgH;yi++){
-    for(let xi=0;xi<imgW;xi++){
-      const x=pad+(xi+0.5)*step, y=pad+(yi+0.5)*step;
-      let wS=0,vS=0;
-      for(let i=0;i<np.length;i++){
-        const dx=x-np[i].px, dy=y-np[i].py;
-        const d=Math.sqrt(dx*dx+dy*dy)+1;
-        const w=1/(d*d); wS+=w; vS+=w*nodeMotionSmooth[i];
-      }
-      const t=Math.pow(Math.min(1,(vS/wS)/maxM),0.65);
-      const[r,g,b]=heatColor(t);
-      const idx=(yi*imgW+xi)*4;
-      px[idx]=r;px[idx+1]=g;px[idx+2]=b;px[idx+3]=255;
-    }
+  // Gradient fill under the curve
+  const grad = motCtx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, 'rgba(167,192,128,0.3)');
+  grad.addColorStop(1, 'rgba(167,192,128,0.02)');
+
+  motCtx.beginPath();
+  motCtx.moveTo(0, H);
+  for (let i = 0; i < motionHistory.length; i++) {
+    const x = (MOTION_HISTORY_MAX - motionHistory.length + i) * colW;
+    const y = H - (motionHistory[i] / maxV) * H * 0.9;
+    motCtx.lineTo(x, y);
   }
-  oc.putImageData(img,0,0);
-  roomCtx.save(); roomCtx.imageSmoothingEnabled=true; roomCtx.imageSmoothingQuality='high';
-  const cr=10*dpr;
-  roomCtx.beginPath(); roomCtx.roundRect(pad,pad,rw,rh,cr); roomCtx.clip();
-  roomCtx.drawImage(off,pad,pad,rw,rh); roomCtx.restore();
+  motCtx.lineTo(W, H);
+  motCtx.fillStyle = grad;
+  motCtx.fill();
 
-  // Border
-  roomCtx.strokeStyle='#475258'; roomCtx.lineWidth=1*dpr;
-  roomCtx.beginPath(); roomCtx.roundRect(pad,pad,rw,rh,cr); roomCtx.stroke();
-
-  // Grid
-  roomCtx.save();
-  roomCtx.beginPath(); roomCtx.roundRect(pad,pad,rw,rh,cr); roomCtx.clip();
-  roomCtx.strokeStyle='rgba(122,132,120,0.06)'; roomCtx.lineWidth=0.5*dpr;
-  for(let i=1;i<6;i++){
-    const gx=pad+rw*i/6, gy=pad+rh*i/6;
-    roomCtx.beginPath();roomCtx.moveTo(gx,pad);roomCtx.lineTo(gx,pad+rh);roomCtx.stroke();
-    roomCtx.beginPath();roomCtx.moveTo(pad,gy);roomCtx.lineTo(pad+rw,gy);roomCtx.stroke();
+  // Line
+  motCtx.beginPath();
+  for (let i = 0; i < motionHistory.length; i++) {
+    const x = (MOTION_HISTORY_MAX - motionHistory.length + i) * colW;
+    const y = H - (motionHistory[i] / maxV) * H * 0.9;
+    i === 0 ? motCtx.moveTo(x, y) : motCtx.lineTo(x, y);
   }
-  roomCtx.restore();
-
-  // Node connections
-  for(let i=0;i<np.length;i++) for(let j=i+1;j<np.length;j++){
-    const avg=(nodeMotionSmooth[i]+nodeMotionSmooth[j])/2;
-    const intensity=Math.min(1,avg/maxM);
-    roomCtx.strokeStyle=`rgba(127,187,179,${0.04+intensity*0.15})`;
-    roomCtx.lineWidth=(0.5+intensity*1.5)*dpr;
-    roomCtx.setLineDash([4*dpr,6*dpr]);
-    roomCtx.beginPath();roomCtx.moveTo(np[i].px,np[i].py);roomCtx.lineTo(np[j].px,np[j].py);roomCtx.stroke();
-    roomCtx.setLineDash([]);
-  }
-
-  // Ripples
-  for(let i=ripples.length-1;i>=0;i--){
-    const r=ripples[i]; r.r+=1.5*dpr; r.alpha-=0.015;
-    if(r.alpha<=0){ripples.splice(i,1);continue;}
-    roomCtx.strokeStyle=r.color.replace('A',r.alpha.toFixed(2));
-    roomCtx.lineWidth=1.2*dpr;
-    roomCtx.beginPath();roomCtx.arc(r.x,r.y,r.r,0,Math.PI*2);roomCtx.stroke();
-  }
-  for(let i=0;i<np.length;i++){
-    if(nodeMotion[i]>maxM*0.4&&Math.random()<0.06){
-      const rgb=i===0?'127,187,179':i===1?'214,153,182':'219,188,127';
-      ripples.push({x:np[i].px,y:np[i].py,r:6*dpr,alpha:0.35,color:`rgba(${rgb},A)`});
-    }
-  }
-
-  // Nodes
-  for(let i=0;i<nodePos.length;i++){
-    const x=np[i].px, y=np[i].py;
-    const ml=Math.min(1,nodeMotionSmooth[i]/maxM);
-    const r=(7+ml*5)*dpr;
-    const glR=r*(2+ml*3);
-    const grd=roomCtx.createRadialGradient(x,y,r*0.3,x,y,glR);
-    grd.addColorStop(0,nodeColors[i]+Math.round((0.12+ml*0.2)*255).toString(16).padStart(2,'0'));
-    grd.addColorStop(1,'transparent');
-    roomCtx.fillStyle=grd; roomCtx.beginPath();roomCtx.arc(x,y,glR,0,Math.PI*2);roomCtx.fill();
-    roomCtx.beginPath();roomCtx.arc(x,y,r,0,Math.PI*2);
-    roomCtx.fillStyle=nodeColors[i];roomCtx.globalAlpha=0.85;roomCtx.fill();roomCtx.globalAlpha=1;
-    roomCtx.strokeStyle='#d3c6aa44';roomCtx.lineWidth=1*dpr;roomCtx.stroke();
-    roomCtx.fillStyle='#232a2e';
-    roomCtx.font=`bold ${9*dpr}px 'JetBrains Mono'`;
-    roomCtx.textAlign='center';roomCtx.textBaseline='middle';
-    roomCtx.fillText(i+1,x,y);
-    roomCtx.fillStyle='#9da9a0';roomCtx.font=`${8*dpr}px 'JetBrains Mono'`;
-    roomCtx.fillText(nodeMotion[i].toFixed(1),x,y+r+9*dpr);
-  }
-
-  // Scale
-  const lx=pad+rw-12*dpr,ly=pad+rh-55*dpr,lh=45*dpr,lw=6*dpr;
-  for(let i=0;i<lh;i++){const[r,g,b]=heatColor(1-i/lh);roomCtx.fillStyle=`rgb(${r},${g},${b})`;roomCtx.fillRect(lx,ly+i,lw,1);}
-  roomCtx.strokeStyle='#47525833';roomCtx.lineWidth=0.5;roomCtx.strokeRect(lx,ly,lw,lh);
-
-  // Status badge
-  const cc=classConfig[smoothedClass]||classConfig.absent;
-  roomCtx.save();roomCtx.globalAlpha=0.9;
-  const bx=pad+6*dpr,by=pad+rh-30*dpr;
-  roomCtx.fillStyle='#2d353bcc';
-  roomCtx.beginPath();roomCtx.roundRect(bx,by,180*dpr,24*dpr,5*dpr);roomCtx.fill();
-  roomCtx.globalAlpha=1;
-  roomCtx.fillStyle=cc.fg;
-  roomCtx.beginPath();roomCtx.arc(bx+12*dpr,by+12*dpr,3.5*dpr,0,Math.PI*2);roomCtx.fill();
-  roomCtx.font=`600 ${10*dpr}px Inter`;roomCtx.textAlign='left';
-  roomCtx.fillText(cc.label+' \u2014 '+(smoothedConf*100).toFixed(0)+'%', bx+22*dpr,by+15*dpr);
-  roomCtx.restore();
+  motCtx.strokeStyle = '#a7c080'; motCtx.lineWidth = 1.5 * dpr;
+  motCtx.stroke();
 }
 
-function drawTimelineOn(ctx,canvas){
-  const dpr=devicePixelRatio||1;
-  const W=canvas.width, H=canvas.height;
-  ctx.fillStyle='#343f44';ctx.fillRect(0,0,W,H);
-  if(timelineData.length<2) return;
-  const colW=W/TIMELINE_MAX;
-  for(let i=0;i<timelineData.length;i++){
-    const d=timelineData[i], cc=classConfig[d.cls]||classConfig.absent;
-    const x=(TIMELINE_MAX-timelineData.length+i)*colW;
-    const h=cc.tlY*H;
-    ctx.fillStyle=cc.fg+'30'; ctx.fillRect(x,H-h,colW+0.5,h);
-  }
-  ctx.strokeStyle='#d3c6aa55';ctx.lineWidth=1.5*dpr;ctx.beginPath();
-  for(let i=0;i<timelineData.length;i++){
-    const d=timelineData[i], cc=classConfig[d.cls]||classConfig.absent;
-    const x=(TIMELINE_MAX-timelineData.length+i)*colW+colW/2;
-    const y=H-cc.tlY*H;
-    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
-  }
-  ctx.stroke();
-  const fs=Math.max(7,Math.min(11,H/18));
-  ctx.fillStyle='#7a847855';ctx.font=`${fs*dpr}px 'JetBrains Mono'`;ctx.textAlign='right';
-  [{t:'empty',y:0.12},{t:'lying',y:0.35},{t:'sitting',y:0.55},{t:'walking',y:0.75},{t:'active',y:0.92}]
-    .forEach(l=>ctx.fillText(l.t,W-3*dpr,H-l.y*H+3*dpr));
-}
-function drawTimeline(){drawTimelineOn(tlCtx,tlCanvas);}
-
-function drawSpec(ctx,canvas,data){
-  const W=canvas.width,H=canvas.height;
-  ctx.fillStyle='#2d353b';ctx.fillRect(0,0,W,H);
-  if(!data.length) return;
-  let gMax=1; for(const col of data) for(const v of col) if(v>gMax) gMax=v;
-  const colW=W/SPEC_W;
-  for(let ci=0;ci<data.length;ci++){
-    const col=data[ci],rows=col.length,rowH=H/rows;
-    const x=Math.floor((SPEC_W-data.length+ci)*colW);
-    for(let ri=0;ri<rows;ri++){
-      const[r,g,b]=spectroColor(col[ri]/gMax);
-      ctx.fillStyle=`rgb(${r},${g},${b})`;
-      ctx.fillRect(x,Math.floor(ri*rowH),Math.ceil(colW)+1,Math.ceil(rowH)+1);
-    }
-  }
-}
-
-function updateUI(){
-  const cc=classConfig[smoothedClass]||classConfig.absent;
-  const ring=document.getElementById('statusRing');
-  ring.className='status-ring '+smoothedClass; ring.innerHTML=cc.icon;
-  const lbl=document.getElementById('statusLabel');
-  lbl.className='status-label '+smoothedClass; lbl.textContent=cc.label;
-  const pct=(smoothedConf*100).toFixed(0);
-  document.getElementById('statusSub').textContent=
-    lastEstPersons>0? lastEstPersons+' person detected' : 'No presence detected';
-  document.getElementById('confPct').textContent=pct+'%';
-  document.getElementById('confPct').style.color=cc.fg;
-  document.getElementById('confFill').style.width=pct+'%';
-  document.getElementById('confFill').style.background=cc.fg;
-  // Person pips
-  const dots=document.getElementById('personsDots').children;
-  for(let i=0;i<dots.length;i++){
-    if(i<lastEstPersons){dots[i].className='person-pip on';dots[i].style.background=cc.fg;dots[i].style.boxShadow=`0 0 6px ${cc.fg}44`;}
-    else{dots[i].className='person-pip';dots[i].style.background='';dots[i].style.boxShadow='';}
-  }
-  document.getElementById('personsText').textContent=
-    lastEstPersons===0?'No persons':lastEstPersons+(lastEstPersons===1?' person':' persons');
-  // Nodes
-  const maxM=Math.max(0.5,...nodeMotionSmooth);
-  for(let i=0;i<3;i++){
-    document.getElementById('nb'+(i+1)).style.width=Math.min(100,(nodeMotionSmooth[i]/maxM)*100)+'%';
-    document.getElementById('nv'+(i+1)).textContent=nodeMotion[i].toFixed(1);
-  }
-}
-
-// Fullscreen
-let fsMode=null,fsSpecCanvases=[],fsSpecCtxs=[],fsTlCanvas=null,fsTlCtx=null;
-function openFullscreen(mode){
-  fsMode=mode;
-  const overlay=document.getElementById('fsOverlay'),body=document.getElementById('fsBody');
-  overlay.classList.add('active');
-  const dpr=devicePixelRatio||1;
-  if(mode==='timeline'){
-    document.getElementById('fsTitle').textContent='Activity Timeline';
-    body.innerHTML='<canvas id="fsTl" style="width:100%;height:100%"></canvas>';
-    fsTlCanvas=document.getElementById('fsTl');
-    const r=body.getBoundingClientRect();
-    fsTlCanvas.width=Math.round(r.width*dpr);fsTlCanvas.height=Math.round(r.height*dpr);
-    fsTlCtx=fsTlCanvas.getContext('2d');
-  }else{
-    document.getElementById('fsTitle').textContent='CSI Spectrograms';
-    body.innerHTML='<div class="specs">'+
-      '<div class="spec-panel"><span class="spec-label">Node 1</span><canvas id="fsc1"></canvas></div>'+
-      '<div class="spec-panel"><span class="spec-label">Node 2</span><canvas id="fsc2"></canvas></div>'+
-      '<div class="spec-panel"><span class="spec-label">Node 3</span><canvas id="fsc3"></canvas></div></div>';
-    fsSpecCanvases=['fsc1','fsc2','fsc3'].map(id=>document.getElementById(id));
-    requestAnimationFrame(()=>{
-      fsSpecCanvases.forEach(c=>{const r=c.parentElement.getBoundingClientRect();c.width=Math.round(r.width*dpr);c.height=Math.round(r.height*dpr);});
-      fsSpecCtxs=fsSpecCanvases.map(c=>c.getContext('2d'));
-    });
-  }
-}
-function closeFullscreen(){fsMode=null;document.getElementById('fsOverlay').classList.remove('active');fsSpecCanvases=[];fsSpecCtxs=[];fsTlCanvas=null;fsTlCtx=null;}
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeFullscreen();});
-
-let lastRender=0;
-function render(ts){
-  if(ts-lastRender>50){
-    lastRender=ts;
-    drawRoom();drawTimeline();
-    for(let i=0;i<3;i++) drawSpec(specCtxs[i],specCanvases[i],specData[i]);
-    updateUI();
-    if(fsMode==='timeline'&&fsTlCtx) drawTimelineOn(fsTlCtx,fsTlCanvas);
-    if(fsMode==='specs'&&fsSpecCtxs.length===3) for(let i=0;i<3;i++) drawSpec(fsSpecCtxs[i],fsSpecCanvases[i],specData[i]);
+// ── Render loop ──
+let lastRender = 0;
+function render(ts) {
+  if (ts - lastRender > 80) {
+    lastRender = ts;
+    updateStatus();
+    drawTimeline();
+    drawMotion();
   }
   requestAnimationFrame(render);
 }
 requestAnimationFrame(render);
 
-function connect(){
-  const ws=new WebSocket(WS_URL);
-  ws.onopen=()=>{document.getElementById('wsDot').className='ws-dot live';document.getElementById('wsLabel').textContent='Live';document.getElementById('wsLabel').style.color='#a7c080';};
-  ws.onclose=()=>{document.getElementById('wsDot').className='ws-dot off';document.getElementById('wsLabel').textContent='Offline';document.getElementById('wsLabel').style.color='#e67e80';setTimeout(connect,2000);};
-  ws.onerror=()=>ws.close();
-  let lastP=0;
-  ws.onmessage=(evt)=>{
-    totalMsgs++;
-    const now=Date.now();
-    if(now-lastP<20)return;lastP=now;
-    try{processMessage(JSON.parse(evt.data));frameCount++;
-    if(now-lastFpsTime>1000){document.getElementById('fps').textContent=frameCount+' fps';frameCount=0;lastFpsTime=now;}}catch(e){}
+// ── WebSocket ──
+function connect() {
+  const ws = new WebSocket(WS_URL);
+  ws.onopen = () => {
+    document.getElementById('wsDot').className = 'ws-dot live';
+    document.getElementById('wsLabel').textContent = 'Live';
+    document.getElementById('wsLabel').style.color = '#a7c080';
+  };
+  ws.onclose = () => {
+    document.getElementById('wsDot').className = 'ws-dot off';
+    document.getElementById('wsLabel').textContent = 'Offline';
+    document.getElementById('wsLabel').style.color = '#e67e80';
+    setTimeout(connect, 2000);
+  };
+  ws.onerror = () => ws.close();
+  let lastP = 0;
+  ws.onmessage = (evt) => {
+    const now = Date.now();
+    if (now - lastP < 20) return; lastP = now;
+    try {
+      processMessage(JSON.parse(evt.data));
+      frameCount++;
+      if (now - lastFpsTime > 1000) {
+        document.getElementById('fps').textContent = frameCount + ' fps';
+        frameCount = 0; lastFpsTime = now;
+      }
+    } catch(e) {}
   };
 }
 connect();
