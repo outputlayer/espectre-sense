@@ -71,21 +71,25 @@ def main():
     OUTPUT_DIR.mkdir(exist_ok=True)
 
     recordings = {
-        "empty": DATA_DIR / "train_empty_v3.jsonl",
-        "lying": DATA_DIR / "train_lying_v3.jsonl",
-        "walking": DATA_DIR / "train_walking_v3.jsonl",
-        "sitting": DATA_DIR / "train_sitting_v3.jsonl",
+        "empty": [DATA_DIR / "train_empty_v3.jsonl"],
+        "lying": [DATA_DIR / "train_lying_v3.jsonl"],
+        "walking": [DATA_DIR / "train_walking_v3.jsonl", DATA_DIR / "train_walking_v4.jsonl"],
+        "sitting": [DATA_DIR / "train_sitting_v3.jsonl", DATA_DIR / "train_sitting_v4.jsonl"],
     }
 
-    for name, path in recordings.items():
-        if not path.exists():
-            print(f"ERROR: {path} not found"); sys.exit(1)
+    for name, paths in recordings.items():
+        for path in paths:
+            if not path.exists():
+                print(f"ERROR: {path} not found"); sys.exit(1)
 
     # 1. Parse
     print("=== Parsing recordings ===")
     raw_data = {}
-    for name, path in recordings.items():
-        raw_data[name] = parse_recording(str(path))
+    for name, paths in recordings.items():
+        parts = [parse_recording(str(p)) for p in paths]
+        raw_data[name] = np.concatenate(parts, axis=0)
+        if len(parts) > 1:
+            print(f"  {name}: merged {len(parts)} files -> {raw_data[name].shape[0]} frames")
 
     # 2. Trim lying
     lying_trim = int(TRIM_LYING_SECS * 109)
