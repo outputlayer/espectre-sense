@@ -1,34 +1,38 @@
-
 # Build
-# Credentials & secrets
-# Data (generated at runtime)
-# Docker
-# ESP32 NVS partition images (may contain WiFi passwords)
+target/
+*.o
+*.a
+*.so
+*.dylib
+
 # IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Credentials & secrets
+*.bin
+*.env
+.env
+credentials*
+secrets*
+
+# ESP32 NVS partition images (may contain WiFi passwords)
+nvs_wifi.bin
+nvs_config.bin
+
 # OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Data (generated at runtime)
+data/
+*.jsonl
+
 # Rust
 **/*.rs.bk
-*.a
-*.bin
-*.dylib
-*.env
-*.jsonl
-*.o
-*.so
-*.swo
-*.swp
-*~
-.DS_Store
-.claude-flow/
-.env
-.idea/
-.vscode/
-Thumbs.db
-credentials*
-data/
-docker-compose.override.yml
-firmware/prebuilt/
-nvs_config.bin
-nvs_wifi.bin
-secrets*
-target/
