@@ -398,8 +398,9 @@ function updateStatus() {
   allDurations[key] += elapsed;
   const maxDur = Math.max(1, ...Object.values(allDurations));
 
+  const stateToId = { absent: 'Empty', lying: 'Lying', sitting: 'Sitting', walking: 'Walking' };
   for (const [k, dur] of Object.entries(allDurations)) {
-    const id = k.charAt(0).toUpperCase() + k.slice(1);
+    const id = stateToId[k] || k;
     document.getElementById('time' + id).textContent = formatDuration(dur);
     document.getElementById('bar' + id).style.width = (dur / maxDur * 100) + '%';
     const card = document.getElementById('stat' + id);
