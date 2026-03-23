@@ -1721,6 +1721,49 @@ async fn handle_ws_pose_client(mut socket: WebSocket, state: SharedState) {
 
 // ── REST endpoints ───────────────────────────────────────────────────────────
 
+
+/// Recalibrate the DL classifier baseline from live empty-room frames.
+async fn recalibrate_handler(
+    axum::extract::State(state): axum::extract::State<SharedState>,
+) -> impl IntoResponse {
+    let mut s = state.write().await;
+    if let Some(ref mut dl) = s.dl_classifier {
+        if dl.is_recalibrating() {
+            let (done, total) = dl.recal_progress();
+            axum::Json(serde_json::json!({
+                "status": "already_running",
+                "progress": done,
+                "total": total
+            }))
+        } else {
+            dl.start_recalibration(500); // ~23 seconds at 22Hz
+            axum::Json(serde_json::json!({
+                "status": "started",
+                "message": "Recalibration started. Keep room EMPTY for ~25 seconds.",
+                "frames": 500
+            }))
+        }
+    } else {
+        axum::Json(serde_json::json!({"status": "error", "message": "DL classifier not loaded"}))
+    }
+}
+
+async fn recalibrate_status(
+    axum::extract::State(state): axum::extract::State<SharedState>,
+) -> impl IntoResponse {
+    let s = state.read().await;
+    if let Some(ref dl) = s.dl_classifier {
+        let (done, total) = dl.recal_progress();
+        axum::Json(serde_json::json!({
+            "active": dl.is_recalibrating(),
+            "progress": done,
+            "total": total
+        }))
+    } else {
+        axum::Json(serde_json::json!({"active": false, "progress": 0, "total": 0}))
+    }
+}
+
 async fn health(State(state): State<SharedState>) -> Json<serde_json::Value> {
     let s = state.read().await;
     Json(serde_json::json!({
@@ -3882,6 +3925,8 @@ async fn main() {
         .route("/api/v1/models/lora/profiles", get(list_lora_profiles))
         .route("/api/v1/models/lora/activate", post(activate_lora_profile))
         // Recording endpoints
+        .route("/api/v1/recalibrate", post(recalibrate_handler))
+        .route("/api/v1/recalibrate/status", get(recalibrate_status))
         .route("/api/v1/recording/list", get(list_recordings))
         .route("/api/v1/recording/start", post(start_recording))
         .route("/api/v1/recording/stop", post(stop_recording))

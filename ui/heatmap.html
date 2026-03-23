@@ -100,6 +100,19 @@ body { background: #232a2e; color: #d3c6aa; font-family: 'Inter', -apple-system,
 .stat-bar-fill.sitting { background: #a7c080; }
 .stat-bar-fill.walking { background: #dbbc7f; }
 
+/* Recalibrate button */
+.recal-btn {
+  padding: 8px 16px; border-radius: 8px; border: 1px solid #475258;
+  background: #343f44; color: #d3c6aa; font-size: 12px; font-weight: 500;
+  cursor: pointer; transition: all 0.2s; font-family: 'Inter', sans-serif;
+}
+.recal-btn:hover { background: #3d484d; border-color: #7fbbb3; color: #7fbbb3; }
+.recal-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.recal-btn.active { background: rgba(127,187,179,0.1); border-color: #7fbbb3; color: #7fbbb3; }
+.recal-bar { height: 3px; background: #343f44; border-radius: 2px; margin-top: 6px; overflow: hidden; display: none; }
+.recal-bar.visible { display: block; }
+.recal-bar-fill { height: 100%; background: #7fbbb3; border-radius: 2px; transition: width 0.3s; width: 0; }
+
 /* Panels */
 .panel {
   background: #2d353b; border-radius: 12px; padding: 14px 16px;
@@ -167,6 +180,7 @@ body { background: #232a2e; color: #d3c6aa; font-family: 'Inter', -apple-system,
       <span class="logo-sub">Patient Monitor</span>
     </div>
     <div class="header-right">
+      <button class="recal-btn" id="recalBtn" onclick="startRecalibration()">Recalibrate</button>
       <div class="badge"><div class="dot"></div><span class="text">CSINetLight</span></div>
       <span class="fps-label" id="fps">-- fps</span>
       <div class="ws-status">
@@ -178,6 +192,8 @@ body { background: #232a2e; color: #d3c6aa; font-family: 'Inter', -apple-system,
 
   <!-- Alert -->
   <div class="alert-banner" id="alertBanner"></div>
+  <!-- Recalibration progress -->
+  <div class="recal-bar" id="recalBar"><div class="recal-bar-fill" id="recalFill"></div></div>
 
   <!-- Big status -->
   <div class="status-card" id="statusCard">
@@ -559,6 +575,75 @@ function render(ts) {
   requestAnimationFrame(render);
 }
 requestAnimationFrame(render);
+
+// ── Recalibration ──
+const RECAL_API = (() => {
+  const h = location.hostname || 'localhost';
+  const p = location.port || '3030';
+  return 'http://' + h + ':' + p;
+})();
+
+let recalPolling = false;
+
+function startRecalibration() {
+  const btn = document.getElementById('recalBtn');
+  btn.disabled = true;
+  btn.textContent = 'Starting...';
+
+  fetch(RECAL_API + '/api/v1/recalibrate', { method: 'POST' })
+    .then(r => r.json())
+    .then(d => {
+      if (d.status === 'started' || d.status === 'already_running') {
+        btn.className = 'recal-btn active';
+        btn.textContent = 'Calibrating...';
+        document.getElementById('recalBar').className = 'recal-bar visible';
+        document.getElementById('alertBanner').textContent = 'Calibrating baseline — keep room EMPTY for ~25 seconds';
+        document.getElementById('alertBanner').className = 'alert-banner visible';
+        if (!recalPolling) pollRecalStatus();
+      } else {
+        btn.disabled = false;
+        btn.textContent = 'Recalibrate';
+        alert(d.message || 'Error');
+      }
+    })
+    .catch(e => {
+      btn.disabled = false;
+      btn.textContent = 'Recalibrate';
+    });
+}
+
+function pollRecalStatus() {
+  recalPolling = true;
+  fetch(RECAL_API + '/api/v1/recalibrate/status')
+    .then(r => r.json())
+    .then(d => {
+      const pct = d.total > 0 ? (d.progress / d.total * 100) : 0;
+      document.getElementById('recalFill').style.width = pct + '%';
+
+      if (d.active) {
+        document.getElementById('recalBtn').textContent =
+          'Calibrating ' + Math.round(pct) + '%';
+        setTimeout(pollRecalStatus, 500);
+      } else {
+        // Done
+        recalPolling = false;
+        const btn = document.getElementById('recalBtn');
+        btn.disabled = false;
+        btn.className = 'recal-btn';
+        btn.textContent = 'Recalibrate';
+        document.getElementById('recalBar').className = 'recal-bar';
+        document.getElementById('alertBanner').textContent = 'Baseline recalibrated successfully!';
+        setTimeout(() => {
+          document.getElementById('alertBanner').className = 'alert-banner';
+        }, 5000);
+      }
+    })
+    .catch(() => {
+      recalPolling = false;
+      document.getElementById('recalBtn').disabled = false;
+      document.getElementById('recalBtn').textContent = 'Recalibrate';
+    });
+}
 
 // ── WebSocket ──
 function connect() {

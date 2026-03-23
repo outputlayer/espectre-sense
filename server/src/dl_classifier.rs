@@ -15,12 +15,15 @@ const INFER_EVERY: usize = 1;
 const CLASSES: [&str; 4] = ["empty", "lying", "walking", "sitting"];
 const NUM_CLASSES: usize = 4;
 
-const BASELINE_ADAPT_RATE: f32 = 0.005;
-const BASELINE_CONFIDENCE_THRESHOLD: f32 = 0.85;
 const VOTE_WINDOW: usize = 7; // increased from 5 for smoother predictions
 
 // Hysteresis: higher confidence needed for confusing transitions
 const TRANSITION_CONFIDENCE: f32 = 0.55;
+
+// Variance-based adaptive baseline (doesn't depend on model output)
+const DRIFT_RATE_STILL: f32 = 0.003;  // low variance → faster correction
+const DRIFT_RATE_MOVING: f32 = 0.0002; // high variance → very slow
+const STILL_VARIANCE_THRESHOLD: f32 = 0.00005; // below this = "still"
 
 // ── NN ops ───────────────────────────────────────────────────────────────────
 
@@ -173,6 +176,12 @@ pub struct DlClassifier {
     last_confidence: f32,
     vote_history: Vec<[f32; NUM_CLASSES]>,
     prev_reported_class: usize,
+    prev_l2_frame: Option<[f32; FEATURES]>,
+    drift_tick: usize,
+    // Recalibration
+    recal_frames: Vec<[f32; FEATURES]>,
+    recal_target: usize,
+    recal_active: bool,
 }
 
 impl DlClassifier {
@@ -204,6 +213,11 @@ impl DlClassifier {
             last_confidence: 0.0,
             vote_history: Vec::with_capacity(VOTE_WINDOW),
             prev_reported_class: 0,
+            prev_l2_frame: None,
+            drift_tick: 0,
+            recal_frames: Vec::new(),
+            recal_target: 0,
+            recal_active: false,
         })
     }
 
@@ -231,6 +245,32 @@ impl DlClassifier {
         let mut l2_frame = raw_frame;
         if l2_norm > 1e-6 {
             for v in l2_frame.iter_mut() { *v /= l2_norm; }
+        }
+
+        // 2b. Recalibration: capture L2 frames for new baseline
+        if self.recal_active {
+            self.recal_frames.push(l2_frame);
+            if self.recal_frames.len() % 100 == 0 {
+                eprintln!("RECAL: {}/{} frames", self.recal_frames.len(), self.recal_target);
+            }
+            if self.recal_frames.len() >= self.recal_target {
+                // Compute new baseline as mean of captured frames
+                let mut new_baseline = vec![0.0f32; FEATURES];
+                for fr in &self.recal_frames {
+                    for i in 0..FEATURES {
+                        new_baseline[i] += fr[i];
+                    }
+                }
+                let n = self.recal_frames.len() as f32;
+                for v in new_baseline.iter_mut() { *v /= n; }
+                self.baseline = new_baseline;
+                self.recal_active = false;
+                self.recal_frames.clear();
+                self.frame_buffer.clear();
+                self.vote_history.clear();
+                eprintln!("RECAL: DONE — new baseline from {} frames", self.recal_target);
+            }
+            return Some(("empty", 0.1)); // report "calibrating"
         }
 
         // 3. Subtract baseline
@@ -313,13 +353,35 @@ impl DlClassifier {
         self.last_class = final_class;
         self.last_confidence = final_conf;
 
-        // 7. Adaptive baseline: slowly update when empty detected
-        if final_class == 0 && final_conf > BASELINE_CONFIDENCE_THRESHOLD {
+        // 7. Variance-based adaptive baseline (independent of model predictions)
+        //    Measures frame-to-frame change to detect motion level.
+        //    Low variance → environment is still → correct drift faster.
+        //    This breaks the chicken-and-egg: no need for correct "empty" prediction.
+        if let Some(ref prev) = self.prev_l2_frame {
+            let mut variance = 0.0f32;
             for i in 0..FEATURES {
-                let raw_l2 = l2_frame[i];
-                self.baseline[i] += BASELINE_ADAPT_RATE * (raw_l2 - self.baseline[i]);
+                let d = l2_frame[i] - prev[i];
+                variance += d * d;
+            }
+            variance /= FEATURES as f32;
+
+            let rate = if variance < STILL_VARIANCE_THRESHOLD {
+                DRIFT_RATE_STILL
+            } else {
+                DRIFT_RATE_MOVING
+            };
+
+            for i in 0..FEATURES {
+                self.baseline[i] += rate * (l2_frame[i] - self.baseline[i]);
+            }
+
+            self.drift_tick += 1;
+            if self.drift_tick % 500 == 0 {
+                eprintln!("DRIFT: variance={:.8}, rate={:.4}, class={}",
+                          variance, rate, CLASSES[final_class]);
             }
         }
+        self.prev_l2_frame = Some(l2_frame);
 
         Some((CLASSES[self.last_class], self.last_confidence))
     }
@@ -330,6 +392,24 @@ impl DlClassifier {
 
     pub fn is_ready(&self) -> bool {
         self.frame_buffer.len() >= WINDOW
+    }
+
+    /// Start recalibration: capture N L2-normalized frames as new baseline.
+    /// Room should be EMPTY during recalibration.
+    pub fn start_recalibration(&mut self, n_frames: usize) {
+        self.recal_frames.clear();
+        self.recal_target = n_frames;
+        self.recal_active = true;
+        eprintln!("RECAL: started, capturing {} frames (~{}s)",
+                  n_frames, n_frames / 22);
+    }
+
+    pub fn is_recalibrating(&self) -> bool {
+        self.recal_active
+    }
+
+    pub fn recal_progress(&self) -> (usize, usize) {
+        (self.recal_frames.len(), self.recal_target)
     }
 }
 
